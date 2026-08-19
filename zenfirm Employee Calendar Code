@@ -1,0 +1,1138 @@
+Working calendar code for Zenfirm
+
+
+
+
+<%{
+	// --- DATA FETCHING & LOGIC ---
+	//&& Employee.Org_Name_for_Other_app == input.Org_filter
+	emp = Attendance[Employee != null && Employee.Org_Name_for_Other_app == input.Org_filter];
+	baseDate = today.toStartOfMonth();
+	if(input.Org_filter != null)
+	{
+		organization = input.Org_filter;
+	}
+	if(input.d != null)
+	{
+		baseDate = input.d.toDate().toStartOfMonth();
+	}
+	if(input.Emp_name != null)
+	{
+		basename = input.Emp_name;
+	}
+	org = ifnull(input.Org_filter,"");
+	searchQuery = ifnull(input.emp,"");
+	select_org = ifnull(input.Org_filter,"");
+	// ★1 ADDED: label to display the currently selected organization (no JS)
+	orgLabel = "All Organizations";
+	if(org == "NMG")
+	{
+		orgLabel = "NMG";
+	}
+	if(org == "Zentegra")
+	{
+		orgLabel = "Zentegra";
+	}
+	prevMonth = baseDate.subMonth(1);
+	nextMonth = baseDate.addMonth(1);
+	lastDayOfMonth = baseDate.addMonth(1).subDay(1).getDay();
+	manual_days = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30};
+	// --- OPTIMIZED: Fetch only attendance records for the current month ---
+	monthStart = baseDate;
+	monthEnd = baseDate.addMonth(1).subDay(1);
+	all_attendance = Attendance[Date_field >= monthStart && Date_field <= monthEnd];
+	emp_names = List();
+	for each  rec in all_attendance
+	{
+		currentEmpName = rec.Employee.Name;
+		if(!emp_names.contains(currentEmpName))
+		{
+			if(searchQuery == "" || currentEmpName.containsIgnoreCase(searchQuery))
+			{
+				emp_names.add(currentEmpName);
+			}
+		}
+	}
+	emp_names.sort(true);
+	zenfirm_leaves = Map();
+	cl_dates_tracker = Map();
+	// --- HOLIDAY DATA FETCHING FROM ZENFIRM FUNCTION (OPTIMIZED) ---
+	zenfirm_holidays = Map();
+	try 
+	{
+		// Call the Zenfirm function to get holidays
+		holidayList = thisapp.attendance_app.holiday_list();
+		if(holidayList != null && holidayList.size() > 0)
+		{
+			monthStartStr = baseDate.toString("yyyy-MM");
+			for each  holidayEntry in holidayList
+			{
+				// Get holiday name and date
+				holidayName = ifnull(holidayEntry.get("holiday_name"),"Holiday");
+				holidayDateStr = ifnull(holidayEntry.get("holiday_date"),"");
+				if(holidayDateStr != "")
+				{
+					holidayDate = holidayDateStr.toDate("MM-dd-yyyy");
+					if(holidayDate.toString("yyyy-MM") == monthStartStr)
+					{
+						dateKey = holidayDate.toString("yyyy-MM-dd");
+						zenfirm_holidays.put(dateKey,holidayName);
+					}
+				}
+			}
+		}
+	}	catch (e)
+	{
+		// If there's an error fetching holidays, continue without them
+	}
+	// --- LEAVE DATA FETCHING (OPTIMIZED) ---
+	try 
+	{
+		holiday_list = Holiday_Calendar[Date_field == baseDate];
+		leaveList = holiday_list;
+		if(leaveList != null && leaveList.count() > 0)
+		{
+			monthStartStr = baseDate.toString("yyyy-MM");
+			for each  leaveEntry in leaveList
+			{
+				empName = ifnull(leaveEntry.get("employee_name"),"");
+				empId = ifnull(leaveEntry.get("employee_id"),"");
+				// Fetch leave type from Leave_Days_Details.Leave_Type (with fallback to leave_type)
+				leaveTypeRaw = ifnull(leaveEntry.get("Leave_Days_Details.Leave_Type"),"");
+				if(leaveTypeRaw == "")
+				{
+					leaveTypeRaw = ifnull(leaveEntry.get("leave_type"),"");
+				}
+				if(leaveTypeRaw == "")
+				{
+					leaveTypeRaw = ifnull(leaveEntry.get("Leave_Type"),"");
+				}
+				leaveDateStr = ifnull(leaveEntry.get("leave_date"),"");
+				dayType = ifnull(leaveEntry.get("day_type"),"");
+				approvalStatus = ifnull(leaveEntry.get("approval_status"),"");
+				// Fetch first half or second half from Leave_Days_Details.br (with fallback to br)
+				br = ifnull(leaveEntry.get("Leave_Days_Details.br"),"");
+				if(br == "")
+				{
+					br = ifnull(leaveEntry.get("br"),"");
+				}
+				if(br == "")
+				{
+					br = ifnull(leaveEntry.get("BR"),"");
+				}
+				if(approvalStatus != "Approved")
+				{
+					continue;
+				}
+				if(empName == "" || leaveDateStr == "")
+				{
+					continue;
+				}
+				leaveDate = leaveDateStr.toDate("MM-dd-yyyy");
+				// Check if leave is in current month using string comparison (faster)
+				if(leaveDate.toString("yyyy-MM") != monthStartStr)
+				{
+					continue;
+				}
+				leaveTypeUpper = leaveTypeRaw.toUpperCase();
+				leaveType = "";
+				if(leaveTypeUpper.contains("SICK"))
+				{
+					leaveType = "SL";
+				}
+				else if(leaveTypeUpper.contains("LOP") || leaveTypeUpper.contains("UNPAID"))
+				{
+					leaveType = "LOP";
+				}
+				else if(leaveTypeUpper.contains("CASUAL"))
+				{
+					leaveType = "CL";
+				}
+				else
+				{
+					leaveType = leaveTypeRaw;
+				}
+				dateKey = empName + "|" + leaveDate.toString("yyyy-MM-dd");
+				leaveInfo = Map();
+				leaveInfo.put("leave_type",leaveType);
+				leaveInfo.put("day_type",dayType);
+				leaveInfo.put("employee_id",empId);
+				leaveInfo.put("br",br);
+				zenfirm_leaves.put(dateKey,leaveInfo);
+				if(leaveType == "CL")
+				{
+					monthKey = empName + "|" + leaveDate.toString("yyyy-MM");
+					clDates = List();
+					if(cl_dates_tracker.contains(monthKey))
+					{
+						clDates = cl_dates_tracker.get(monthKey);
+					}
+					clDateStr = leaveDate.toString("yyyy-MM-dd");
+					if(!clDates.contains(clDateStr))
+					{
+						clDates.add(clDateStr);
+						clDates.sort(true);
+					}
+					cl_dates_tracker.put(monthKey,clDates);
+				}
+			}
+		}
+	}	catch (e)
+	{
+	}
+	%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+
+        html, body { 
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            color: #333; 
+            font-size: 13px; 
+        }
+        
+        .pdf-month-header { display: none; }
+
+        /* ============================================================
+           FIXED HEADER CONTAINER (Navbar + Legend)
+        ============================================================ */
+        .header-container {
+            position: sticky;
+            top: 0;
+            z-index: 200; /* ★2 EDITED: was 0 — raised so the org dropdown menu shows above the sticky table header */
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* ============================================================
+           NAVBAR
+        ============================================================ */
+        .top-navbar { 
+            background: #fff; 
+            border-bottom: 1px solid #e9ecef; 
+            padding: 10px 20px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+        }
+		
+		.hd-link {
+			text-decoration: none !important;
+			display: inline-block;
+			cursor: pointer;
+		}
+		.hd-link:hover .status-badge {
+			transform: scale(1.15);
+			box-shadow: 0 3px 8px rgba(180, 83, 9, 0.5);
+			transition: all 0.2s ease;
+		}
+        
+        .nav-left { display: flex; align-items: center; gap: 40px; }
+        .employee-nav-icon { width: 45px; height: 45px; border-radius: 60%; object-fit: cover; border: 2px solid #000; flex-shrink: 0; }
+        .breadcrumb-custom { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+        .breadcrumb-custom li { display: flex; align-items: center; gap: 8px; color: #495057; font-weight: 500; white-space: nowrap; }
+        .nav-center { display: flex; align-items: center; gap: 15px; }
+        .month-nav { display: flex; align-items: center; gap: 8px; }
+        .month-nav-btn { width: 34px; height: 34px; border: 1px solid #1b355a; background: #1b355a; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; transition: all 0.2s; }
+        .month-nav-btn:hover { background: #12243d; border-color: #12243d; color: #fff; }
+        .current-month { font-size: 15px; font-weight: 600; color: #ffffff; background: #1b355a; padding: 5px 20px; border-radius: 6px; min-width: 150px; text-align: center; line-height: 22px; display: inline-block; }
+        .nav-right { display: flex; align-items: center; gap: 8px; }
+        .view-toggle-btn-custom { padding: 8px 24px; border: 1px solid #dee2e6; background: #4361ee; font-size: 15px; font-weight: 600; color: #fff; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .view-toggle-btn-custom:hover { background: #3a56d4; color: #fff; }
+
+        /* ============================================================
+           ★2 ADDED: PURE CSS ORGANIZATION FILTER DROPDOWN (NO JS)
+        ============================================================ */
+        .org-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .org-dropdown-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #1b355a;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: 1px solid #1b355a;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .org-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            min-width: 200px;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+            z-index: 9999;
+            overflow: hidden;
+            padding: 4px 0;
+        }
+        /* Keeps menu open while hovering button OR menu */
+        .org-dropdown:hover .org-dropdown-menu,
+        .org-dropdown:focus-within .org-dropdown-menu {
+            display: block;
+        }
+        .org-dropdown-menu a {
+            display: block;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .org-dropdown-menu a:hover {
+            background: #f0f4ff;
+            color: #1b355a;
+        }
+        .org-dropdown-menu a.org-active {
+            background: #1b355a;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        /* ============================================================
+           LEGEND BAR
+        ============================================================ */
+        .legend-bar { 
+            background: #fff; 
+            border-bottom: 1px solid #dee2e6;
+            padding: 8px 20px; 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            flex-wrap: wrap; 
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #495057; font-weight: 500; }
+        .legend-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 50px; height: 22px; padding: 0 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+        /* ============================================================
+           SCROLLABLE TABLE AREA
+        ============================================================ */
+        .table-container { 
+            height: calc(100vh - 120px);
+            overflow: auto;
+            background: #fff;
+            padding: 0 0 20px 0;
+        }
+
+        .attendance-table { 
+            width: max-content; 
+            min-width: 100%; 
+            border-collapse: separate; 
+            border-spacing: 0;
+            background: #fff;
+        }
+
+        /* ============================================================
+           STICKY TABLE HEADERS
+        ============================================================ */
+        .attendance-table thead { 
+            position: sticky;
+            top: 0;
+            z-index: 100; 
+        }
+        
+        .attendance-table thead th { 
+            background: #1b355a; 
+            border-bottom: 2px solid #e9ecef; 
+            padding: 12px 8px; 
+            text-align: center; 
+            font-weight: 600; 
+            font-size: 12px; 
+            white-space: nowrap; 
+            min-width: 70px; 
+            color: #ffffff;
+        }
+        
+        .attendance-table thead th .date-num { display: block; font-size: 15px; font-weight: 700; color: #ffffff; }
+        .attendance-table thead th .day-name { display: block; font-size: 13px; font-weight: 500; color: #ffffff; margin-top: 2px; }
+        
+        .attendance-table thead th.employee-header { 
+            min-width: 220px; 
+            text-align: left; 
+            padding-left: 20px; 
+            font-size: 18px; 
+            position: sticky; 
+            left: 0; 
+            top: 0;
+            z-index: 110;
+            background: #1b355a; 
+            color: #ffffff; 
+        }
+        
+        .attendance-table thead th.total-header { 
+            background: #eef2ff; 
+            border-bottom: 2px solid #4361ee; 
+            border-left: 1px solid #c7d2fe; 
+            min-width: 85px; 
+            color: #1e3a8a;
+        }
+        .attendance-table thead th.total-header .total-label { display: block; font-size: 11px; font-weight: 700; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.4px; }
+        .attendance-table thead th.total-header .total-sub { display: block; font-size: 9px; font-weight: 500; color: #6366f1; margin-top: 2px; }
+        .attendance-table thead th.total-header.first-total { border-left: 2px solid #4361ee; }
+        .attendance-table thead th.total-header.sl-header { background: #f3f0ff; border-bottom: 2px solid #7c3aed; border-left: 1px solid #ddd6fe; }
+        .attendance-table thead th.total-header.sl-header .total-label { color: #5b21b6; }
+        .attendance-table thead th.total-header.sl-header .total-sub { color: #7c3aed; }
+        .attendance-table thead th.total-header.cl-header { background: #eff6ff; border-bottom: 2px solid #2563eb; border-left: 1px solid #bfdbfe; }
+        .attendance-table thead th.total-header.cl-header .total-label { color: #1e40af; }
+        .attendance-table thead th.total-header.cl-header .total-sub { color: #2563eb; }
+        .attendance-table thead th.total-header.lop-header { background: #fff1f2; border-bottom: 2px solid #dc2626; border-left: 1px solid #fecaca; }
+        .attendance-table thead th.total-header.lop-header .total-label { color: #991b1b; }
+        .attendance-table thead th.total-header.lop-header .total-sub { color: #dc2626; }
+        .attendance-table thead th.total-header.absent-header { background: #fff5f5; border-bottom: 2px solid #e53e3e; border-left: 1px solid #f4c2c2; }
+        .attendance-table thead th.total-header.absent-header .total-label { color: #a31d1d; }
+        .attendance-table thead th.total-header.absent-header .total-sub { color: #e53e3e; }
+        
+        .attendance-table tbody td.employee-cell { 
+            position: sticky; 
+            left: 0; 
+            z-index: 50; 
+            background: #fff; 
+            min-width: 220px; 
+            padding: 10px 15px; 
+            border-right: 2px solid #e9ecef; 
+            box-shadow: 2px 0 4px rgba(0,0,0,0.03);
+        }
+        
+        .employee-info { display: flex; align-items: center; gap: 12px; }
+        .employee-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid #e9ecef; flex-shrink: 0; }
+        .employee-details { display: flex; flex-direction: column; }
+        .employee-name { font-size: 14px; font-weight: 600; color: #212529; margin-top: 1px; }
+        
+        .attendance-table tbody tr { transition: background 0.15s; }
+        .attendance-table tbody tr:hover { background-color: #f8f9ff; }
+        .attendance-table tbody tr:hover td.employee-cell { background-color: #f8f9ff; }
+        .attendance-table tbody td { padding: 8px 4px; text-align: center; vertical-align: middle; border-bottom: 1px solid #f1f3f5; min-width: 70px; }
+        
+        .total-cell { background: #f8faff !important; border-left: 1px solid #e0e7ff !important; font-weight: 700; font-size: 14px; color: #1e3a8a; }
+        .total-cell.first-total { border-left: 2px solid #4361ee !important; }
+        .total-cell.sl-cell { background: #f5f0ff !important; border-left: 1px solid #ddd6fe !important; }
+        .total-cell.cl-cell { background: #eff6ff !important; border-left: 1px solid #bfdbfe !important; }
+        .total-cell.lop-cell { background: #fff5f5 !important; border-left: 1px solid #fecaca !important; }
+        .total-cell.absent-only-cell { background: #fff5f5 !important; border-left: 1px solid #f4c2c2 !important; }
+        
+        .total-value { display: inline-flex; align-items: center; justify-content: center; min-width: 35px; height: 30px; padding: 0 8px; border-radius: 6px; font-weight: 700; font-size: 13px; }
+        .total-present { background: #e7f6ec; color: #1b6e3d; }
+        .total-absent { background: #fdecec; color: #a31d1d; }
+        .total-hd-count { background: #fef3c7; color: #b45309; }
+        .total-sl { background: #ede9fe; color: #5b21b6; }
+        .total-cl { background: #dbeafe; color: #1e40af; }
+        .total-lop { background: #fee2e2; color: #991b1b; }
+        .total-absent-only { background: #fdecec; color: #a31d1d; }
+        
+        .status-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 58px; height: 36px; padding: 0 6px; border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; position: relative; }
+        .status-fd { background: #e7f6ec; color: #1b6e3d; border: 1px solid #e7f6ec; }
+        .status-fd::after { background: #1b6e3d; }
+        .status-hd { background: #FFCDD2; color: Red; }
+        .status-hd::after { background: Red; }
+        .status-lh { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        .status-lh::after { background: #d32f2f;v}
+        .status-absent { background: #fdecec; color: #a31d1d; border: 1px solid #f4c2c2; }
+        .status-absent::after { background: #d63838; }
+        .status-holiday { background: #fce4ec; color: #880e4f; border: 1px solid #f8bbd0; }
+        .status-holiday::after { background: #880e4f; }
+        .status-leave-sick { background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; }
+        .status-leave-sick::after { background: #7c3aed; }
+        .status-sl1 { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+        .status-sl1::after { background: #9333ea; }
+        .status-sl2 { background: #fae8ff; color: #701a75; border: 1px solid #f5d0fe; }
+        .status-sl2::after { background: #d946ef; }
+        .status-leave-casual { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .status-leave-casual::after { background: #2563eb; }
+        .status-cl1 { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+        .status-cl1::after { background: #0284c7; }
+        .status-cl2 { background: #f0f9ff; color: #075985; border: 1px solid #e0f2fe; }
+        .status-cl2::after { background: #0ea5e9; }
+        .status-lop { background: #ffe4e6; color: #9f1239; border: 1px solid #fecdd3; }
+        .status-lop::after { background: #e11d48; }
+        .status-lop1 { background: #fff1f2; color: #be123c; border: 1px solid #ffe4e6; }
+        .status-lop1::after { background: #f43f5e; }
+        .status-lop2 { background: #fff5f5; color: #9b2c2c; border: 1px solid #fed7d7; }
+        .status-lop2::after { background: #e53e3e; }
+        .status-w { background: #e2e8f0; color: #475569; border: 1px solid #cbd2db; }
+        .status-w::after { background: #718096; }
+        
+        .status-badge::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 22px; height: 2px; border-radius: 1px; }
+        .attendance-table tbody td.weekend-col { background-color: #eef2f5 !important; }
+        
+        .table-container::-webkit-scrollbar { width: 10px; height: 10px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f3f5; }
+        .table-container::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 5px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
+        
+        .attendance-table tbody tr:nth-child(even) td { background-color: #fdfdfe; }
+        .attendance-table tbody tr:nth-child(even) td.employee-cell { background-color: #fdfdfe; }
+        .attendance-table tbody tr:nth-child(even) .total-cell { background-color: #f3f6ff !important; }
+        .attendance-table tbody tr:nth-child(even) .sl-cell { background-color: #f0ebff !important; }
+        .attendance-table tbody tr:nth-child(even) .cl-cell { background-color: #e8f2ff !important; }
+        .attendance-table tbody tr:nth-child(even) .lop-cell { background-color: #fff0f0 !important; }
+        .attendance-table tbody tr:nth-child(even) .absent-only-cell { background-color: #fff0f0 !important; }
+        
+        @media (max-width: 768px) {
+            .top-navbar { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+            .nav-center { order: 3; width: 100%; justify-content: center; }
+            .legend-bar { gap: 10px; padding: 8px 12px; font-size: 11px; }
+            .attendance-table thead th, .attendance-table tbody td { min-width: 55px; font-size: 11px; }
+            .employee-cell { min-width: 160px !important; }
+            .employee-name { font-size: 12px; }
+            .table-container { height: calc(100vh - 140px); }
+        }
+
+        @media print {
+            @page { size: A4 landscape; margin: 0.3cm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            
+            .pdf-month-header {
+                display: block !important;
+                text-align: center;
+                font-size: 16px;
+                font-weight: 700;
+                margin: 10px 0;
+                color: #000;
+                border-bottom: 2px solid #333;
+                padding-bottom: 5px;
+            }
+            
+            .header-container { display: none !important; }
+            
+            html, body {
+                height: auto !important;
+                overflow: visible !important;
+                background: #fff !important;
+                color: #000 !important;
+                position: static !important;
+            }
+            
+            .table-container {
+                position: static !important;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                display: block !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                top: auto !important;
+            }
+            
+            .attendance-table {
+                width: 100% !important;
+                min-width: 100% !important;
+                border-collapse: collapse !important;
+                table-layout: auto !important;
+            }
+            
+            .attendance-table thead th, .attendance-table tbody td { 
+                position: static !important; 
+                min-width: auto !important;
+                padding: 4px 2px !important;
+                font-size: 8px !important;
+                border: 1px solid #ccc !important;
+            }
+            
+            .attendance-table thead th.employee-header, .attendance-table tbody td.employee-cell {
+                min-width: 90px !important;
+                width: 90px !important;
+                max-width: 90px !important;
+                padding-left: 4px !important;
+                text-align: left !important;
+                background: #1b355a !important;
+                color: #ffffff !important;
+            }
+            .attendance-table tbody td.employee-cell {
+                background: #fff !important;
+                color: #000 !important;
+                box-shadow: none !important;
+            }
+            
+            .attendance-table thead th .date-num { font-size: 9px !important; }
+            .attendance-table thead th .day-name { font-size: 7px !important; }
+            
+            .attendance-table thead th.total-header {
+                position: static !important;
+                min-width: 36px !important;
+                width: 36px !important;
+                max-width: 36px !important;
+                padding: 4px 1px !important;
+                font-size: 7px !important;
+            }
+            .attendance-table thead th.total-header                { background: #eef2ff !important; color: #1e3a8a !important; }
+            .attendance-table thead th.total-header.sl-header      { background: #f3f0ff !important; color: #5b21b6 !important; }
+            .attendance-table thead th.total-header.cl-header      { background: #eff6ff !important; color: #1e40af !important; }
+            .attendance-table thead th.total-header.lop-header     { background: #fff1f2 !important; color: #991b1b !important; }
+            .attendance-table thead th.total-header.absent-header  { background: #fff5f5 !important; color: #a31d1d !important; }
+            
+            .attendance-table thead th.total-header .total-label { display: block !important; font-size: 7px !important; }
+            .attendance-table thead th.total-header .total-sub { display: block !important; font-size: 6px !important; }
+            
+            .attendance-table tbody td.total-cell {
+                position: static !important;
+                min-width: 36px !important;
+                width: 36px !important;
+                max-width: 36px !important;
+            }
+            
+            .total-value { min-width: 22px !important; height: 18px !important; padding: 0 2px !important; font-size: 8px !important; }
+            .status-badge { min-width: 20px !important; width: 20px !important; height: 18px !important; padding: 0 !important; font-size: 7px !important; line-height: 18px !important; }
+            .status-badge::after { display: none !important; }
+            
+            .employee-info { gap: 4px !important; }
+            .employee-avatar { width: 18px !important; height: 18px !important; }
+            .employee-name { font-size: 8px !important; white-space: nowrap !important; }
+            
+            tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="pdf-month-header">Attendance Tracker Summary &mdash; <%=baseDate.toString("MMMM yyyy")%></div>
+
+    <!-- STICKY HEADER (Navbar + Legend) -->
+    <div class="header-container"> 
+        <!-- NAVBAR -->
+        <nav class="top-navbar">
+            <div class="nav-left">
+                <ul class="breadcrumb-custom"><li><h3 style="margin:0;"><b>Employee Attendance Calendar</b></h3></li></ul>
+            </div>
+			
+            <div class="nav-center">
+                <div class="month-nav">
+                    <a href="#Page:Test_Page?d=<%=prevMonth%>&emp=<%=searchQuery%>&Org_filter=<%=org%>" class="month-nav-btn text-decoration-none"><i class="fas fa-chevron-left"></i></a>
+                    <span class="current-month"><%=baseDate.toString("MMMM yyyy")%></span>
+                    <a href="#Page:Test_Page?d=<%=nextMonth%>&emp=<%=searchQuery%>&Org_filter=<%=org%>" class="month-nav-btn text-decoration-none"><i class="fas fa-chevron-right"></i></a>
+                </div>
+            </div>
+
+            <div class="nav-right">
+
+                <!-- ★3 EDITED: Pure CSS/HTML Organization filter dropdown (NO JS).
+                     Each option is a link that reloads this page passing Org_filter
+                     along with current d and emp params (same pattern as month nav). -->
+                <div class="org-dropdown">
+                    <span class="org-dropdown-btn">
+                        <i class="fas fa-building"></i> <%=orgLabel%> <i class="fas fa-chevron-down"></i>
+                    </span>
+                    <div class="org-dropdown-menu">
+                        <a href="#Page:Test_Page?d=<%=baseDate.toString("dd-MMM-yyyy")%>&emp=<%=searchQuery%>&Org_filter=" class="<%=if(org == "","org-active","")%>">All Organizations</a>
+                        <a href="#Page:Test_Page?d=<%=baseDate.toString("dd-MMM-yyyy")%>&emp=<%=searchQuery%>&Org_filter=NMG" class="<%=if(org == "NMG","org-active","")%>">NMG</a>
+                        <a href="#Page:Test_Page?d=<%=baseDate.toString("dd-MMM-yyyy")%>&emp=<%=searchQuery%>&Org_filter=Zentegra" class="<%=if(org == "Zentegra","org-active","")%>">Zentegra</a>
+                    </div>
+                </div>
+
+                <form action="/printpdf.do" method="get" target="_blank" style="margin: 0; padding: 0; display: inline-block;">
+                    <input type="hidden" name="sharedBy" value="<%=zoho.adminuser%>">
+                    <input type="hidden" name="appLinkName" value="<%=zoho.appname%>">
+                    <input type="hidden" name="pageLinkName" value="Test_Page">
+                    <input type="hidden" name="viewType" value="page">
+                    <input type="hidden" name="d" value="<%=baseDate.toString("dd-MMM-yyyy")%>">
+                    <input type="hidden" name="emp" value="<%=searchQuery%>">
+                    <!-- ★4 ADDED: pass Org_filter into PDF generation -->
+                    <input type="hidden" name="Org_filter" value="<%=org%>">
+                    <input type="hidden" name="landscape" value="true">
+                    <!-- ★4 EDITED: Org_filter added to export URL -->
+                    <a href="https://creatorapp.zoho.in/export/zentegraindia/attendance-payroll-management/pdf/Test_Page?d=<%=baseDate.toString("yyyy-MM-dd")%>&emp=<%=searchQuery%>&Org_filter=<%=org%>" class="text-decoration-none">
+                        <button type="button" class="view-toggle-btn-custom"><i class="fas fa-file-pdf"></i> Export PDF</button>
+                    </a>
+                </form>
+            </div>
+        </nav>
+
+        <!-- LEGEND -->
+        <div class="legend-bar">
+            <div class="legend-item"><span class="legend-chip status-fd">P</span>Full Day Present (&ge; 8 Hrs)</div>
+            <div class="legend-item"><span class="legend-chip status-lh">SH</span>Short Hours (&lt; 8 Hrs)</div>
+            <div class="legend-item"><span class="legend-chip status-absent">A</span>Absent (0 Hrs)</div>
+            <div class="legend-item"><span class="legend-chip status-holiday">H</span>Holiday</div>
+            <div class="legend-item"><span class="legend-chip status-leave-casual">CL</span>CL Full</div>
+            <div class="legend-item"><span class="legend-chip status-cl1">CL 1st</span>CL 1st Half</div>
+            <div class="legend-item"><span class="legend-chip status-cl2">CL 2nd</span>CL 2nd Half</div>
+            <div class="legend-item"><span class="legend-chip status-leave-sick">SL</span>Sick Leave Full</div>
+            <div class="legend-item"><span class="legend-chip status-sl1">SL 1st</span>Sick Leave 1st Half</div>
+            <div class="legend-item"><span class="legend-chip status-sl2">SL 2nd</span>Sick Leave 2nd Half</div>
+            <div class="legend-item"><span class="legend-chip status-lop1">LOP 1st</span>LOP 1st Half</div>
+            <div class="legend-item"><span class="legend-chip status-lop2">LOP 2nd</span>LOP 2nd Half</div>
+            <div class="legend-item"><span class="legend-chip status-lop">LOP</span>LOP Full Day</div>
+            <div class="legend-item"><span class="legend-chip status-w">W</span>Weekend Off</div>
+            <div class="legend-item"><span class="text-muted" style="margin-right:4px; font-weight:bold;">—</span>Future Dates</div>
+        </div>
+    </div>
+
+    <!-- SCROLLABLE TABLE -->
+    <div class="table-container" id="tableContainer">
+        <table class="attendance-table">
+            <thead>
+                <tr>
+                    <th class="employee-header"><b>Employee Name</b></th>
+<%
+	for each  dayIdx in manual_days
+	{
+		if(dayIdx < lastDayOfMonth)
+		{
+			iterDate = baseDate.addDay(dayIdx);
+			dayOfWeekName = iterDate.toString("EEE");
+			isWeekend = dayOfWeekName == "Sat" || dayOfWeekName == "Sun";
+			%>
+<th class="<%=if(isWeekend,"weekend-col","")%>">
+                            <span class="date-num"><%=iterDate.toString("dd")%></span>
+                            <span class="day-name"><%=dayOfWeekName%></span>
+                        </th>
+<%
+		}
+	}
+	%>
+<th class="total-header first-total"><span class="total-label">Present</span><span class="total-sub">Total</span></th>
+                    <th class="total-header"><span class="total-label">Absent</span><span class="total-sub">Total</span></th>
+                    <th class="total-header"><span class="total-label">Half Day</span><span class="total-sub">Total</span></th>
+                    <th class="total-header sl-header"><span class="total-label">Sick Leave</span><span class="total-sub">SL Count</span></th>
+                    <th class="total-header cl-header"><span class="total-label">Casual Leave</span><span class="total-sub">CL Count</span></th>
+                    <th class="total-header lop-header"><span class="total-label">LOP</span><span class="total-sub">Loss of Pay</span></th>
+                    <th class="total-header absent-header"><span class="total-label">Full Day Absent</span><span class="total-sub">No Leave</span></th>
+                </tr>
+            </thead>
+            <tbody>
+<%
+	for each  name in emp_names
+	{
+		rowPresent = 0.0;
+		rowAbsent = 0.0;
+		rowHalfDay = 0;
+		rowSL = 0.0;
+		rowCL = 0.0;
+		rowLOP = 0.0;
+		rowPureAbsent = 0.0;
+		%>
+<tr>
+                    <td class="employee-cell">
+                        <div class="employee-info">
+                            <img src="https://ui-avatars.com/api/?name=<%=zoho.encryption.urlEncode(name)%>&background=4361ee&color=fff&size=80" alt="<%=name%>" class="employee-avatar">
+                            <div class="employee-details"><span class="employee-name"><%=name%></span></div>
+                        </div>
+                    </td>
+<%
+		for each  dayIdx in manual_days
+		{
+			if(dayIdx < lastDayOfMonth)
+			{
+				checkDate = baseDate.addDay(dayIdx);
+				dayNameString = checkDate.toString("EEE");
+				isWE = dayNameString == "Sat" || dayNameString == "Sun";
+				isFuture = checkDate > today;
+				daily_att = Punch[Employee.Name == name && Date_field == zoho.currentdate];
+				dateKey = name + "|" + checkDate.toString("yyyy-MM-dd");
+				leaveInfo = zenfirm_leaves.get(dateKey);
+				hasLeave = false;
+				leaveType = "";
+				leaveDayType = "";
+				isHalfDay = false;
+				isFH = false;
+				if(leaveInfo != null)
+				{
+					hasLeave = true;
+					leaveType = leaveInfo.get("leave_type");
+					leaveDayType = leaveInfo.get("day_type");
+					brVal = ifnull(leaveInfo.get("br"),"");
+					brLower = brVal.toLowerCase();
+					dayTypeLower = ifnull(leaveDayType,"").toLowerCase();
+					if(brLower.contains("First Half") || brLower.contains("1st") || brLower.contains("fh"))
+					{
+						isHalfDay = true;
+						isFH = true;
+					}
+					else if(brLower.contains("Second Half") || brLower.contains("2nd") || brLower.contains("sh"))
+					{
+						isHalfDay = true;
+						isSH = true;
+					}
+					else if(dayTypeLower.contains("half"))
+					{
+						isHalfDay = true;
+						isFH = true;
+					}
+				}
+				// Check if this date is a holiday from Zenfirm
+				holidayDateKey = checkDate.toString("yyyy-MM-dd");
+				isHoliday = zenfirm_holidays.contains(holidayDateKey);
+				holidayName = "";
+				if(isHoliday)
+				{
+					holidayName = zenfirm_holidays.get(holidayDateKey);
+				}
+				displayStatus = "";
+				badgeClass = "";
+				%>
+<td class="<%=if(isWE,"weekend-col","")%>">
+<%
+				if(isWE)
+				{
+					%>
+<span class="status-badge status-w" title="Weekend">W</span>
+<%
+				}
+				else if(isFuture)
+				{
+					%>
+<span class="text-muted" style="opacity: 0.4; font-weight: bold; font-size: 12px;">—</span>
+<%
+				}
+				else if(isHoliday)
+				{
+					// If it's a holiday, show 'H'
+					%>
+<span class="status-badge status-holiday" title="<%=holidayName%>">H</span>
+<%
+				}
+				else if(daily_att.count() > 0)
+				{
+					hoursWorked = 0.0;
+					for each  att in daily_att
+					{
+						if(att != null)
+						{
+							hoursWorked = att;
+						}
+					}
+					if(hoursWorked >= 8.0)
+					{
+						rowPresent = rowPresent + 1;
+						%>
+<span class="status-badge status-fd" title="Full Day Present (<%=hoursWorked%> hrs)">P</span>
+<%
+					}
+					else
+					{
+						if(hasLeave && isHalfDay)
+						{
+							if(hoursWorked >= 4.0)
+							{
+								rowPresent = rowPresent + 0.5;
+								rowAbsent = rowAbsent + 0.5;
+								rowHalfDay = rowHalfDay + 1;
+								leaveIncrement = 0.5;
+								if(leaveType == "SL")
+								{
+									if(isFH)
+									{
+										displayStatus = "SL 1st";
+										badgeClass = "status-sl1";
+									}
+									else
+									{
+										displayStatus = "SL 2nd";
+										badgeClass = "status-sl2";
+									}
+									rowSL = rowSL + leaveIncrement;
+								}
+								else if(leaveType == "LOP")
+								{
+									if(isFH)
+									{
+										displayStatus = "LOP 1st";
+										badgeClass = "status-lop1";
+									}
+									else
+									{
+										displayStatus = "LOP 2nd";
+										badgeClass = "status-lop2";
+									}
+									rowLOP = rowLOP + leaveIncrement;
+								}
+								else
+								{
+									if(isFH)
+									{
+										displayStatus = "CL 1st";
+										badgeClass = "status-cl1";
+									}
+									else
+									{
+										displayStatus = "CL 2nd";
+										badgeClass = "status-cl2";
+									}
+									rowCL = rowCL + leaveIncrement;
+								}
+								titleText = displayStatus + " + Worked (" + hoursWorked + " hrs)";
+							}
+							else
+							{
+								rowAbsent = rowAbsent + 1.0;
+								rowPureAbsent = rowPureAbsent + 0.5;
+								leaveIncrement = 0.5;
+								if(leaveType == "SL")
+								{
+									if(isFH)
+									{
+										displayStatus = "SL 1st";
+										badgeClass = "status-sl1";
+									}
+									else
+									{
+										displayStatus = "SL 2nd";
+										badgeClass = "status-sl2";
+									}
+									rowSL = rowSL + leaveIncrement;
+								}
+								else if(leaveType == "LOP")
+								{
+									if(isFH)
+									{
+										displayStatus = "LOP 1st";
+										badgeClass = "status-lop1";
+									}
+									else
+									{
+										displayStatus = "LOP 2nd";
+										badgeClass = "status-lop2";
+									}
+									rowLOP = rowLOP + leaveIncrement;
+								}
+								else
+								{
+									if(isFH)
+									{
+										displayStatus = "CL 1st";
+										badgeClass = "status-cl1";
+									}
+									else
+									{
+										displayStatus = "CL 2nd";
+										badgeClass = "status-cl2";
+									}
+									rowCL = rowCL + leaveIncrement;
+								}
+								titleText = displayStatus + " + Half Day Absent (Worked " + hoursWorked + " hrs)";
+							}
+							%>
+<span class="status-badge <%=badgeClass%>" title="<%=titleText%>"><%=displayStatus%></span>
+<%
+						}
+						else if(hasLeave && !isHalfDay)
+						{
+							rowAbsent = rowAbsent + 1.0;
+							if(leaveType == "SL")
+							{
+								displayStatus = "SL";
+								badgeClass = "status-leave-sick";
+								rowSL = rowSL + 1.0;
+							}
+							else if(leaveType == "LOP")
+							{
+								displayStatus = "LOP";
+								badgeClass = "status-lop";
+								rowLOP = rowLOP + 1.0;
+							}
+							else
+							{
+								displayStatus = "CL";
+								badgeClass = "status-leave-casual";
+								rowCL = rowCL + 1.0;
+							}
+							titleText = displayStatus + " Full Day Leave (Worked " + hoursWorked + " hrs)";
+							%>
+<span class="status-badge <%=badgeClass%>" title="<%=titleText%>"><%=displayStatus%></span>
+<%
+						}
+						else
+						{
+							if(hoursWorked >= 4.0)
+							{
+								rowPresent = rowPresent + 0.5;
+								rowAbsent = rowAbsent + 0.5;
+								rowHalfDay = rowHalfDay + 1;
+							}
+							else
+							{
+								rowAbsent = rowAbsent + 1.0;
+								rowPureAbsent = rowPureAbsent + 1.0;
+							}
+							// Get employee details
+							empId = "";
+							for each  att in daily_att
+							{
+								if(att.Employee.ID != null)
+								{
+									empId = att.Employee.ID;
+								}
+							}
+							// Build dynamic URL with employee filter and date filter
+							id = emp.Employee.ID;
+							attend_emo_obj = Attendance[Employee.Name == name];
+							empName = name;
+							dateFormatted = checkDate.toString("dd-MMM-yyyy");
+							emp_punch = Attendance[Date_field == checkDate.toString("dd-MMM-yyyy") && Employee == attend_emo_obj.Employee];
+							// Build the URL with dialog parameters
+							hdreporturl = "#Form:Attendance_Regularization?zc_LoadIn=dialog&Employee=" + attend_emo_obj.Employee + "&Date_field=" + checkDate.toString("dd-MMM-yyyy") + "&From_Time=" + "&zc_DialogWidth=900&zc_DialogHeight=700&zc_DialogTop=250&zc_DialogLeft=200";
+							displayStatus = "HD";
+							badgeClass = "status-hd";
+							titleText = "Half Day - " + name + " on " + dateFormatted + " (" + hoursWorked + " hrs) - Click to view report";
+							%>
+<!-- This will open the form in a dialog/popup within the same page -->
+<a href="<%=hdreporturl%>" 
+   class="hd-link"
+   title="<%=titleText%>"
+   style="cursor: pointer; text-decoration: none; display: inline-block;">
+    <span class="status-badge status-hd">SH</span>
+</a>
+<%
+						}
+					}
+				}
+				else
+				{
+					if(hasLeave)
+					{
+						if(isHalfDay)
+						{
+							rowAbsent = rowAbsent + 1.0;
+							rowPureAbsent = rowPureAbsent + 0.5;
+							leaveIncrement = 0.5;
+							if(leaveType == "SL")
+							{
+								if(isFH)
+								{
+									displayStatus = "SL 1st";
+									badgeClass = "status-sl1";
+								}
+								else
+								{
+									displayStatus = "SL 2nd";
+									badgeClass = "status-sl2";
+								}
+								rowSL = rowSL + leaveIncrement;
+							}
+							else if(leaveType == "LOP")
+							{
+								if(isFH)
+								{
+									displayStatus = "LOP 1st";
+									badgeClass = "status-lop1";
+								}
+								else
+								{
+									displayStatus = "LOP 2nd";
+									badgeClass = "status-lop2";
+								}
+								rowLOP = rowLOP + leaveIncrement;
+							}
+							else
+							{
+								if(isFH)
+								{
+									displayStatus = "CL 1st";
+									badgeClass = "status-cl1";
+								}
+								else
+								{
+									displayStatus = "CL 2nd";
+									badgeClass = "status-cl2";
+								}
+								rowCL = rowCL + leaveIncrement;
+							}
+							titleText = displayStatus + " + Half Day Absent";
+						}
+						else
+						{
+							rowAbsent = rowAbsent + 1.0;
+							if(leaveType == "SL")
+							{
+								displayStatus = "SL";
+								badgeClass = "status-leave-sick";
+								rowSL = rowSL + 1.0;
+							}
+							else if(leaveType == "LOP")
+							{
+								displayStatus = "LOP";
+								badgeClass = "status-lop";
+								rowLOP = rowLOP + 1.0;
+							}
+							else
+							{
+								displayStatus = "CL";
+								badgeClass = "status-leave-casual";
+								rowCL = rowCL + 1.0;
+							}
+							titleText = displayStatus + " Full Day Leave";
+						}
+						%>
+<span class="status-badge <%=badgeClass%>" title="<%=titleText%>"><%=displayStatus%></span>
+<%
+					}
+					else
+					{
+						rowAbsent = rowAbsent + 1.0;
+						rowPureAbsent = rowPureAbsent + 1.0;
+						%>
+<span class="status-badge status-absent" title="Absent">A</span>
+<%
+					}
+				}
+				%>
+</td>
+<%
+			}
+		}
+		%>
+<td class="total-cell first-total"><span class="total-value total-present"><%=rowPresent%></span></td>
+                    <td class="total-cell"><span class="total-value total-absent"><%=rowAbsent%></span></td>
+                    <td class="total-cell"><span class="total-value total-hd-count"><%=rowHalfDay%></span></td>
+                    <td class="total-cell sl-cell"><span class="total-value total-sl"><%=rowSL%></span></td>
+                    <td class="total-cell cl-cell"><span class="total-value total-cl"><%=rowCL%></span></td>
+                    <td class="total-cell lop-cell"><span class="total-value total-lop"><%=rowLOP%></span></td>
+                    <td class="total-cell absent-only-cell"><span class="total-value total-absent-only"><%=rowPureAbsent%></span></td>
+                </tr>
+<%
+	}
+	%>
+</tbody>
+        </table>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        function fixLayout() {
+            var headerHeight = document.querySelector('.header-container').offsetHeight;
+            var tableContainer = document.querySelector('.table-container');
+            tableContainer.style.height = 'calc(100vh - ' + headerHeight + 'px)';
+        }
+        
+        window.addEventListener('load', fixLayout);
+        window.addEventListener('resize', fixLayout);
+        setTimeout(fixLayout, 100);
+        setTimeout(fixLayout, 300);
+        setTimeout(fixLayout, 500);
+    </script>
+</body>
+</html>
+<%
+
+}%>
