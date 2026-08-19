@@ -1,0 +1,637 @@
+<%{
+	// ============================================================
+	// PAGE PARAMETERS
+	// ============================================================
+	input.d = ifnull(input.d,"");
+	input.Next_btn = ifnull(input.Next_btn,"");
+	input.t = zoho.currentdate.toString("dd-MM-yyyy");
+	// today, used to highlight the current day cell
+	input.employee_email = ifnull(input.employee_email,"");
+	if(input.d == "")
+	{
+		baseDate = today.toStartOfMonth();
+	}
+	else
+	{
+		paramDate = input.d.toDate().toStartOfMonth();
+		if(input.Next_btn == true)
+		{
+			baseDate = paramDate.addMonth(1);
+		}
+		else if(input.Next_btn == false)
+		{
+			baseDate = paramDate.subMonth(1);
+		}
+		else
+		{
+			baseDate = paramDate;
+		}
+	}
+	monthStart = baseDate;
+	monthEnd = baseDate.addMonth(1).subDay(1);
+	daysInMonth = monthEnd.getDay();
+	// Weekday index of the 1st of the month, Monday-based (Mon=0 ... Sun=6)
+	firstDayName = baseDate.toString("EEE");
+	leadOffset = 0;
+	if(firstDayName == "Mon")
+	{
+		leadOffset = 0;
+	}
+	else if(firstDayName == "Tue")
+	{
+		leadOffset = 1;
+	}
+	else if(firstDayName == "Wed")
+	{
+		leadOffset = 2;
+	}
+	else if(firstDayName == "Thu")
+	{
+		leadOffset = 3;
+	}
+	else if(firstDayName == "Fri")
+	{
+		leadOffset = 4;
+	}
+	else if(firstDayName == "Sat")
+	{
+		leadOffset = 5;
+	}
+	else if(firstDayName == "Sun")
+	{
+		leadOffset = 6;
+	}
+	gridStart = baseDate.subDay(leadOffset);
+	totalCells = leadOffset + daysInMonth;
+	totalWeeks = (totalCells - 1) / 7 + 1;
+	maxWeekSlots = {0,1,2,3,4,5};
+	weekIndexList = List();
+	for each  wk in maxWeekSlots
+	{
+		if(wk < totalWeeks)
+		{
+			weekIndexList.add(wk);
+		}
+	}
+	dowIndexList = {0,1,2,3,4,5,6};
+	// ============================================================
+	// FETCH THE TARGET EMPLOYEE  (emp_obj = Collection)
+	// ============================================================
+	targetEmpName = "";
+	targetEmpID = "";
+	try 
+	{
+		input.emp_obj = Employee[Email == input.employee_email];
+		if(input.emp_obj != null && emp_obj.count() > 0)
+		{
+			emp_list = input.emp_obj.toList();
+			for each  emp in emp_list
+			{
+			}
+		}
+	}	catch (e)
+	{
+		// Employee not found
+	}
+	// ============================================================
+	// FETCH ATTENDANCE (Hours worked) FOR THIS EMPLOYEE ONLY
+	// via attendance_app.Get_Employee_Data_From_APM()
+	// ============================================================
+	attendanceMap = Map();
+	// dateKey (yyyy-MM-dd) -> hours worked
+	try 
+	{
+		apmData = thisapp.attendance_app.Get_Employee_Data_From_APM();
+		if(apmData != null && apmData.size() > 0)
+		{
+			for each  rec in apmData
+			{
+				if(rec != null)
+				{
+					recEmail = ifnull(rec.get("EmployeeEmail"),"");
+					if(recEmail == input.employee_email)
+					{
+						recDate = rec.get("Date");
+						hrsRaw = rec.get("Hoursworked");
+						if(recDate != null && hrsRaw != null)
+						{
+							dateKey = recDate.toString("yyyy-MM-dd");
+							attendanceMap.put(dateKey,hrsRaw);
+						}
+					}
+				}
+			}
+		}
+	}	catch (e)
+	{
+		// Attendance data not available
+	}
+	// ============================================================
+	// HOLIDAY DATA — direct form fetch (Holiday_Calendar)
+	// ============================================================
+	zenfirm_holidays = Map();
+	try 
+	{
+		holidayRecords = Holiday_Calendar[Date_field >= monthStart && Date_field <= monthEnd];
+		if(holidayRecords != null && holidayRecords.count() > 0)
+		{
+			holidayList = holidayRecords.toList();
+			for each  hRec in holidayList
+			{
+			}
+		}
+	}	catch (e)
+	{
+		// No holidays found
+	}
+	// ============================================================
+	// LEAVE DATA — direct form fetch (Request_Leave)
+	// ============================================================
+	zenfirm_leaves = Map();
+	// dateKey (yyyy-MM-dd) -> leaveInfo Map
+	try 
+	{
+		// Try different query formats based on your form structure
+		leaveRecords = null;
+		// Attempt 1: Try with Employee_Name.Email lookup
+		try 
+		{
+			leaveRecords = Request_Leave[Employee_Name.Email == input.employee_email && Leave_Days_Details.Date_field >= monthStart && Leave_Days_Details.Date_field <= monthEnd];
+		}		catch (e)
+		{
+			// Query format 1 failed
+		}
+		// If no records found, try alternative query format
+		if(leaveRecords == null || leaveRecords.count() == 0)
+		{
+			try 
+			{
+				// Attempt 2: Try with Employee lookup
+				leaveRecords = Request_Leave[Employee_Name.Email == input.employee_email && Leave_Days_Details.Date_field >= monthStart && Leave_Days_Details.Date_field <= monthEnd];
+			}			catch (e)
+			{
+				// Query format 2 failed
+			}
+		}
+		// If still no records, try without employee filter to get all leaves
+		if(leaveRecords == null || leaveRecords.count() == 0)
+		{
+			try 
+			{
+				leaveRecords = Request_Leave[Leave_Days_Details.Date_field >= monthStart && Leave_Days_Details.Date_field <= monthEnd];
+			}			catch (e)
+			{
+				// Query format 3 failed
+			}
+		}
+		if(leaveRecords != null && leaveRecords.count() > 0)
+		{
+			leaveList = leaveRecords.toList();
+			for each  leaveEntry in leaveList
+			{
+				if(leaveEntry != null)
+				{
+					leaveDate = leaveEntry.get("Leave_Days_Details.Date");
+					leaveTypeRaw = ifnull(leaveEntry.get("Leave_Days_Details.Leave_Type"),"");
+					approvalStatus = ifnull(leaveEntry.get("Approval_Status"),"");
+					br = ifnull(leaveEntry.get("Leave_Days_Details.br"),"");
+					// Try alternate field names if values are empty
+					if(leaveTypeRaw == "")
+					{
+						leaveTypeRaw = ifnull(leaveEntry.get("Leave_Type"),"");
+					}
+					if(approvalStatus == "")
+					{
+						approvalStatus = ifnull(leaveEntry.get("approval_status"),"");
+					}
+					if(br == "")
+					{
+						br = ifnull(leaveEntry.get("br"),"");
+					}
+					if(approvalStatus != "Approved")
+					{
+						continue;
+					}
+					if(leaveDate == null)
+					{
+						continue;
+					}
+					leaveTypeUpper = leaveTypeRaw.toUpperCase();
+					leaveType = "";
+					if(leaveTypeUpper.contains("SICK"))
+					{
+						leaveType = "SL";
+					}
+					else if(leaveTypeUpper.contains("LOP") || leaveTypeUpper.contains("UNPAID"))
+					{
+						leaveType = "LOP";
+					}
+					else if(leaveTypeUpper.contains("CASUAL"))
+					{
+						leaveType = "CL";
+					}
+					else
+					{
+						leaveType = leaveTypeRaw;
+					}
+					dateKey = leaveDate.toString("yyyy-MM-dd");
+					leaveInfo = Map();
+					leaveInfo.put("leave_type",leaveType);
+					leaveInfo.put("br",br);
+					zenfirm_leaves.put(dateKey,leaveInfo);
+				}
+			}
+		}
+	}	catch (e)
+	{
+		// No leave records found
+	}
+	%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; background: #f8f9fa; }
+        body { font-family: 'Inter', sans-serif; color: #333; font-size: 13px; }
+
+        .header-container { position: sticky; top: 0; z-index: 200; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+
+        .top-navbar { background: #fff; border-bottom: 1px solid #e9ecef; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+        .nav-left { display: flex; align-items: center; gap: 12px; }
+        .emp-avatar-lg { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e9ecef; }
+        .breadcrumb-custom { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+        .breadcrumb-custom .title-main { font-weight: 700; font-size: 17px; color: #212529; }
+        .breadcrumb-custom .title-sub { font-size: 12px; color: #6c757d; }
+        .nav-center { display: flex; align-items: center; gap: 15px; margin-left: auto; margin-right: auto; }
+        .month-nav { display: flex; align-items: center; gap: 8px; }
+        .month-nav-btn { width: 34px; height: 34px; border: 1px solid #1b355a; background: #1b355a; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; transition: all 0.2s; text-decoration: none; }
+        .month-nav-btn:hover { background: #12243d; border-color: #12243d; color: #fff; }
+        .current-month { font-size: 15px; font-weight: 600; color: #ffffff; background: #1b355a; padding: 5px 20px; border-radius: 6px; min-width: 150px; text-align: center; line-height: 22px; display: inline-block; }
+
+        .legend-bar { background: #fff; border-bottom: 1px solid #dee2e6; padding: 8px 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #495057; font-weight: 500; }
+        .legend-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 50px; height: 22px; padding: 0 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+        .calendar-container { height: calc(100vh - 150px); overflow: auto; background: #f8f9fa; padding: 16px 20px; }
+
+        .calendar-weekday-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+        .calendar-weekday-header div { text-align: center; font-size: 12px; font-weight: 700; letter-spacing: 0.4px; padding: 8px 4px; border-radius: 6px; background: #1b355a; color: #fff; }
+        .calendar-weekday-header div.weekend-head { background: #2f6fb0; }
+
+        .calendar-week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+
+        .calendar-day-cell { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; min-height: 90px; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+        .calendar-day-cell.weekend-col { background: #f5f8fb; }
+        .calendar-day-cell.today-cell { border: 2px solid #4361ee; background: #f4f6ff; }
+        .calendar-day-cell.empty-cell { background: #fbfbfc; }
+
+        .day-number { font-size: 13px; font-weight: 700; color: #1b355a; }
+
+        .hd-link { text-decoration: none !important; display: inline-block; cursor: pointer; }
+        .hd-link:hover .status-badge { transform: scale(1.1); box-shadow: 0 2px 6px rgba(180, 83, 9, 0.5); transition: all 0.2s ease; }
+
+        .status-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 56px; height: 30px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.2px; }
+        .status-fd { background: #e7f6ec; color: #1b6e3d; }
+        .status-hd { background: #FFCDD2; color: red; }
+        .status-absent { background: #fdecec; color: #a31d1d; }
+        .status-holiday { background: #fce4ec; color: #880e4f; }
+        .status-leave-sick { background: #ede9fe; color: #5b21b6; }
+        .status-sl1 { background: #f3e8ff; color: #6b21a8; }
+        .status-sl2 { background: #fae8ff; color: #701a75; }
+        .status-leave-casual { background: #dbeafe; color: #1e40af; }
+        .status-cl1 { background: #e0f2fe; color: #0369a1; }
+        .status-cl2 { background: #f0f9ff; color: #075985; }
+        .status-lop { background: #ffe4e6; color: #9f1239; }
+        .status-lop1 { background: #fff1f2; color: #be123c; }
+        .status-lop2 { background: #fff5f5; color: #9b2c2c; }
+        .status-w { background: #e2e8f0; color: #475569; }
+
+        .no-employee-msg { padding: 60px 20px; text-align: center; color: #a31d1d; font-size: 15px; font-weight: 600; }
+
+        .calendar-container::-webkit-scrollbar { width: 10px; height: 10px; }
+        .calendar-container::-webkit-scrollbar-track { background: #f1f3f5; }
+        .calendar-container::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 5px; }
+        .calendar-container::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
+
+        @media (max-width: 768px) {
+            .top-navbar { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+            .legend-bar { gap: 10px; padding: 8px 12px; font-size: 11px; }
+            .calendar-day-cell { min-height: 70px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- STICKY HEADER (Navbar + Legend) -->
+    <div class="header-container">
+        <nav class="top-navbar">
+            <div class="nav-left">
+                <img src="https://ui-avatars.com/api/?name=<%=zoho.encryption.urlEncode(ifnull(targetEmpName,"NA"))%>&background=4361ee&color=fff&size=80" class="emp-avatar-lg" alt="">
+                <ul class="breadcrumb-custom">
+                    <li class="title-main"><%=if(targetEmpName == "","No Employee Selected",targetEmpName)%></li>
+                    <li class="title-sub">Attendance Calendar</li>
+                </ul>
+            </div>
+
+            <div class="nav-center">
+                <div class="month-nav">
+                    <a href="#Page:Test_Page?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=false&employee_email=<%=input.employee_email%>" class="month-nav-btn"><i class="fas fa-chevron-left"></i></a>
+                    <span class="current-month"><%=baseDate.toString("MMMM yyyy")%></span>
+                    <a href="#Page:Test_Page?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=true&employee_email=<%=input.employee_email%>" class="month-nav-btn"><i class="fas fa-chevron-right"></i></a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- LEGEND -->
+        <div class="legend-bar">
+            <div class="legend-item"><span class="legend-chip status-fd">P</span>Full Day Present (&ge; 8 Hrs)</div>
+            <div class="legend-item"><span class="legend-chip status-hd">SH</span>Short Hours (&lt; 8 Hrs)</div>
+            <div class="legend-item"><span class="legend-chip status-absent">A</span>Absent (0 Hrs)</div>
+            <div class="legend-item"><span class="legend-chip status-holiday">H</span>Holiday</div>
+            <div class="legend-item"><span class="legend-chip status-leave-casual">CL</span>CL Full</div>
+            <div class="legend-item"><span class="legend-chip status-cl1">CL 1st</span>CL 1st Half</div>
+            <div class="legend-item"><span class="legend-chip status-cl2">CL 2nd</span>CL 2nd Half</div>
+            <div class="legend-item"><span class="legend-chip status-leave-sick">SL</span>Sick Leave Full</div>
+            <div class="legend-item"><span class="legend-chip status-sl1">SL 1st</span>Sick Leave 1st Half</div>
+            <div class="legend-item"><span class="legend-chip status-sl2">SL 2nd</span>Sick Leave 2nd Half</div>
+            <div class="legend-item"><span class="legend-chip status-lop1">LOP 1st</span>LOP 1st Half</div>
+            <div class="legend-item"><span class="legend-chip status-lop2">LOP 2nd</span>LOP 2nd Half</div>
+            <div class="legend-item"><span class="legend-chip status-lop">LOP</span>LOP Full Day</div>
+            <div class="legend-item"><span class="legend-chip status-w">W</span>Weekend Off</div>
+            <div class="legend-item"><span class="text-muted" style="margin-right:4px; font-weight:bold;">&mdash;</span>Future Dates</div>
+        </div>
+    </div>
+<%
+	if(input.employee_email == "")
+	{
+		%>
+<div class="no-employee-msg">No employee selected. Add <code>employee_email</code> to the page URL to view a calendar.</div>
+<%
+	}
+	else
+	{
+		%>
+<!-- CALENDAR GRID -->
+    <div class="calendar-container">
+
+        <div class="calendar-weekday-header">
+            <div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div>
+            <div class="weekend-head">SAT</div><div class="weekend-head">SUN</div>
+        </div>
+<%
+		for each  weekNum in weekIndexList
+		{
+			%>
+<div class="calendar-week-row">
+<%
+			for each  dow in dowIndexList
+			{
+				cellIndex = weekNum * 7 + dow;
+				cellDate = gridStart.addDay(cellIndex);
+				inMonth = cellDate.toStartOfMonth() == baseDate;
+				isWeekendCol = dow == 5 || dow == 6;
+				isToday = cellDate.toString("dd-MM-yyyy") == input.t;
+				cellClasses = "";
+				if(isWeekendCol)
+				{
+					cellClasses = cellClasses + " weekend-col";
+				}
+				if(isToday && inMonth)
+				{
+					cellClasses = cellClasses + " today-cell";
+				}
+				if(!inMonth)
+				{
+					cellClasses = cellClasses + " empty-cell";
+				}
+				%>
+<div class="calendar-day-cell<%=cellClasses%>">
+<%
+				if(inMonth)
+				{
+					%>
+<div class="day-number"><%=cellDate.toString("dd")%></div>
+<%
+					isFuture = cellDate > today;
+					dateKey = cellDate.toString("yyyy-MM-dd");
+					holidayDateKey = dateKey;
+					isHoliday = zenfirm_holidays.contains(holidayDateKey);
+					holidayName = "";
+					if(isHoliday)
+					{
+						holidayName = zenfirm_holidays.get(holidayDateKey);
+					}
+					displayStatus = "";
+					badgeClass = "";
+					titleText = "";
+					hdLinkUrl = "";
+					if(isWeekendCol)
+					{
+						displayStatus = "W";
+						badgeClass = "status-w";
+						titleText = "Weekend";
+					}
+					else if(isFuture)
+					{
+						%>
+<span class="text-muted" style="opacity: 0.4; font-weight: bold; font-size: 14px;">&mdash;</span>
+<%
+					}
+					else if(isHoliday)
+					{
+						displayStatus = "H";
+						badgeClass = "status-holiday";
+						titleText = holidayName;
+					}
+					else
+					{
+						leaveInfo = zenfirm_leaves.get(dateKey);
+						hasLeave = false;
+						leaveType = "";
+						isHalfDay = false;
+						isFH = false;
+						if(leaveInfo != null)
+						{
+							hasLeave = true;
+							leaveType = leaveInfo.get("leave_type");
+							brVal = ifnull(leaveInfo.get("br"),"");
+							brLower = brVal.toLowerCase();
+							if(brLower.contains("first half") || brLower.contains("1st") || brLower.contains("fh"))
+							{
+								isHalfDay = true;
+								isFH = true;
+							}
+							else if(brLower.contains("second half") || brLower.contains("2nd") || brLower.contains("sh"))
+							{
+								isHalfDay = true;
+							}
+						}
+						hasPunch = attendanceMap.contains(dateKey);
+						if(hasPunch)
+						{
+							hoursWorked = attendanceMap.get(dateKey);
+							if(hoursWorked >= 8.0)
+							{
+								displayStatus = "P";
+								badgeClass = "status-fd";
+								titleText = "Full Day Present (" + hoursWorked + " hrs)";
+							}
+							else if(hasLeave && isHalfDay)
+							{
+								if(leaveType == "SL")
+								{
+									displayStatus = if(isFH,"SL 1st","SL 2nd");
+									badgeClass = if(isFH,"status-sl1","status-sl2");
+								}
+								else if(leaveType == "LOP")
+								{
+									displayStatus = if(isFH,"LOP 1st","LOP 2nd");
+									badgeClass = if(isFH,"status-lop1","status-lop2");
+								}
+								else
+								{
+									displayStatus = if(isFH,"CL 1st","CL 2nd");
+									badgeClass = if(isFH,"status-cl1","status-cl2");
+								}
+								titleText = displayStatus + " + Worked (" + hoursWorked + " hrs)";
+							}
+							else if(hasLeave && !isHalfDay)
+							{
+								if(leaveType == "SL")
+								{
+									displayStatus = "SL";
+									badgeClass = "status-leave-sick";
+								}
+								else if(leaveType == "LOP")
+								{
+									displayStatus = "LOP";
+									badgeClass = "status-lop";
+								}
+								else
+								{
+									displayStatus = "CL";
+									badgeClass = "status-leave-casual";
+								}
+								titleText = displayStatus + " Full Day Leave (Worked " + hoursWorked + " hrs)";
+							}
+							else
+							{
+								dateFormatted = cellDate.toString("dd-MMM-yyyy");
+								hdreporturl = "#Form:Attendance_Regularization?zc_LoadIn=dialog&Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&From_Time=" + "&zc_DialogWidth=900&zc_DialogHeight=700&zc_DialogTop=250&zc_DialogLeft=200";
+								displayStatus = "SH";
+								badgeClass = "status-hd";
+								titleText = "Short Hours - " + targetEmpName + " on " + dateFormatted + " (" + hoursWorked + " hrs) - Click to view report";
+								hdLinkUrl = hdreporturl;
+							}
+						}
+						else
+						{
+							if(hasLeave)
+							{
+								if(isHalfDay)
+								{
+									if(leaveType == "SL")
+									{
+										displayStatus = if(isFH,"SL 1st","SL 2nd");
+										badgeClass = if(isFH,"status-sl1","status-sl2");
+									}
+									else if(leaveType == "LOP")
+									{
+										displayStatus = if(isFH,"LOP 1st","LOP 2nd");
+										badgeClass = if(isFH,"status-lop1","status-lop2");
+									}
+									else
+									{
+										displayStatus = if(isFH,"CL 1st","CL 2nd");
+										badgeClass = if(isFH,"status-cl1","status-cl2");
+									}
+									titleText = displayStatus + " + Absent";
+								}
+								else
+								{
+									if(leaveType == "SL")
+									{
+										displayStatus = "SL";
+										badgeClass = "status-leave-sick";
+									}
+									else if(leaveType == "LOP")
+									{
+										displayStatus = "LOP";
+										badgeClass = "status-lop";
+									}
+									else
+									{
+										displayStatus = "CL";
+										badgeClass = "status-leave-casual";
+									}
+									titleText = displayStatus + " Full Day Leave";
+								}
+							}
+							else
+							{
+								displayStatus = "A";
+								badgeClass = "status-absent";
+								titleText = "Absent";
+							}
+						}
+					}
+					if(displayStatus != "")
+					{
+						%>
+<div>
+<%
+						if(hdLinkUrl != "")
+						{
+							%>
+<a href="<%=hdLinkUrl%>" class="hd-link" title="<%=titleText%>"><span class="status-badge <%=badgeClass%>"><%=displayStatus%></span></a>
+<%
+						}
+						else
+						{
+							%>
+<span class="status-badge <%=badgeClass%>" title="<%=titleText%>"><%=displayStatus%></span>
+<%
+						}
+						%>
+</div>
+<%
+					}
+				}
+				%>
+</div>
+<%
+			}
+			%>
+</div>
+<%
+		}
+		%>
+</div>
+<%
+	}
+	%>
+<script>
+        function fixLayout() {
+            var headerHeight = document.querySelector('.header-container').offsetHeight;
+            var calContainer = document.querySelector('.calendar-container');
+            if (calContainer) {
+                calContainer.style.height = 'calc(100vh - ' + headerHeight + 'px)';
+            }
+        }
+        window.addEventListener('load', fixLayout);
+        window.addEventListener('resize', fixLayout);
+        setTimeout(fixLayout, 100);
+        setTimeout(fixLayout, 300);
+    </script>
+</body>
+</html>
+<%
+
+}%>
