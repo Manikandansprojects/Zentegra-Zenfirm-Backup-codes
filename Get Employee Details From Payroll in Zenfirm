@@ -1,0 +1,5 @@
+list attendance_app.Get_Employee_Data_From_APM()
+{
+	emp_data = attendance_payroll_management.Zenfirm.Push_Employee_Details();
+	return List(emp_data);
+}
