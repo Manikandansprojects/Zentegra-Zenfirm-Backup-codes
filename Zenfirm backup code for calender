@@ -609,6 +609,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Attendance</title>
@@ -705,7 +706,7 @@
         .hd-link:hover .status-badge { transform: scale(1.04); }
 
         .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 5px; font-size: 10px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
-        .status-badge i { font-size: 8px; }
+        .status-badge i { font-size: 12px; }
         .status-fd { background: #dcfce7; color: #16a34a; }
         .status-fd i { color: #22c55e; }
         .status-sh { background: #fff3df; color: #d97706; }
@@ -741,6 +742,103 @@
             .calendar-day-cell { min-height: 72px; padding: 6px; }
             .nav-center { margin-left: 0; width: 100%; justify-content: space-between; }
         }
+		/* ===== Short Hours Popup (pure CSS, no JS) ===== */
+		.sh-toggle {
+			position: absolute;
+			opacity: 0;
+			width: 0;
+			height: 0;
+			margin: 0;
+			pointer-events: none;
+		}
+
+		.sh-modal-overlay {
+			display: none;
+			position: fixed;
+			top: 0; right: 0; bottom: 0; left: 0;
+			background: rgba(17,24,39,0.55);
+			z-index: 9999;
+			align-items: center;
+			justify-content: center;
+			padding: 20px;
+		}
+
+		/* This one line opens the popup */
+		.sh-toggle:checked ~ .sh-modal-overlay { display: flex; }
+
+		.sh-backdrop {
+			position: absolute;
+			top: 0; right: 0; bottom: 0; left: 0;
+			cursor: pointer;
+			margin: 0;
+		}
+
+		.sh-modal-box {
+			position: relative;
+			z-index: 1;
+			background: #fff;
+			width: 500px;
+			max-width: 723px;
+			border-radius: 16px;
+			box-shadow: 0 24px 60px rgba(16,24,40,0.28);
+			overflow: hidden;
+		}
+
+		.sh-modal-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			padding: 12px 16px;
+			background: #5b21b6;
+			color: #fff;
+		}
+		.sh-modal-title {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 16px;
+			font-weight: 700;
+		}
+		.sh-modal-title i { font-size: 12px; }
+		.sh-modal-sub {
+			font-size: 10px;
+			font-weight: 500;
+			opacity: 0.85;
+			margin-top: 3px;
+		}
+		.sh-modal-close {
+			width: 28px;
+			height: 28px;
+			border-radius: 8px;
+			background: rgba(255,255,255,0.18);
+			color: #fff;
+			font-size: 12px;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			margin: 0;
+			flex-shrink: 0;
+			transition: 0.2s;
+		}
+		.sh-modal-close:hover { background: rgba(255,255,255,0.34); }
+
+		.sh-modal-body { background: #f8f9fc; }
+		.sh-modal-body iframe {
+			width: 100%;
+			height: 633px;
+			border: 0;
+			display: block;
+		}
+
+		label.hd-link { cursor: pointer; margin: 0; }
+
+		@media (max-width: 768px) {
+			.sh-modal-box { max-width: 100%; }
+			.sh-modal-body iframe { height: 70vh; }
+		}
+		.desp { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 5px; font-size: 10px; font-weight: 600; line-height: 1.2; white-space: nowrap; color: #f59e0b; }
     </style>
 </head>
 <body>
@@ -997,10 +1095,13 @@
 										rowPureAbsent = rowPureAbsent + 1.0;
 									}
 									dateFormatted = cellDate.toString("dd-MMM-yyyy");
-									hdLinkUrl = "";
+
+									// Popup form URL for Short Hours (form-embed version)
+									hdLinkUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G?&Employee=" + targetEmpID + "&Date_field=" + dateFormatted;
 									displayStatus = "SH";
 									badgeClass = "status-sh";
-									titleText = "Short Hours - " + targetEmpName + " on " + dateFormatted + " (" + hoursWorked + " hrs)";
+									titleText = "Short Hours - " + targetEmpName + " on " + dateFormatted + " (" + hoursWorked + " hrs) - Click To Request Regularize";
+									
 								}
 							}
 						}
@@ -1082,6 +1183,7 @@
 					else if(displayStatus == "SH")
 					{
 						uiLabel = "Short Hours";
+						uiLabelDescription = "Click to Request Regularization";
 						uiIcon = "fas fa-clock";
 						cellClasses = cellClasses + " cell-sh-bg";
 					}
@@ -1184,21 +1286,41 @@
 <span class="text-muted" style="opacity: 0.35; font-weight: 600; font-size: 16px;">&mdash;</span>
 <%
 					}
-					else if(uiLabel != "")
+										else if(uiLabel != "")
 					{
 						if(hdLinkUrl != "")
 						{
+							shId = "sh_" + cellDate.toString("yyyyMMdd");
 							%>
-<a href="<%=hdLinkUrl%>" class="hd-link" title="<%=titleText%>"><span class="status-badge <%=badgeClass%>"><i class="<%=uiIcon%>"></i><%=uiLabel%></span></a>
-<%
-						}
-						else
-						{
-							%>
-<span class="status-badge <%=badgeClass%>" title="<%=titleText%>"><i class="<%=uiIcon%>"></i><%=uiLabel%></span>
-<%
-						}
-					}
+							<input type="checkbox" id="<%=shId%>" class="sh-toggle">
+							<label for="<%=shId%>" class="hd-link" title="<%=titleText%>"><span class="status-badge <%=badgeClass%>"><i class="<%=uiIcon%>"></i><%=uiLabel%></span><br><p class="desp"><%=uiLabelDescription%></p></label>
+							<div class="sh-modal-overlay">
+								<label for="<%=shId%>" class="sh-backdrop"></label>
+								<div class="sh-modal-box">
+									<div class="sh-modal-header">
+										<div>
+											<div class="sh-modal-title"><i class="fas fa-clock"></i> Attendance Regularization Request</div>
+											<%
+											//<div class="sh-modal-sub"><%=targetEmpName%> &nbsp;|&nbsp; <%=cellDate.toString("dd-MMM-yyyy")%></div>
+											%>
+											<div class="sh-modal-sub"><p>This Request Goes To Your Reporting Manager & HR</p></div>
+										</div>
+										<label for="<%=shId%>" class="sh-modal-close"><i class="fas fa-times"></i></label>
+									</div>
+									<div class="sh-modal-body">
+										<iframe src="<%=hdLinkUrl%>" loading="lazy" frameborder="0" allowTransparency="true" scrolling="auto"></iframe>
+									</div>
+								</div>
+							</div>
+							<%
+													}
+													else
+													{
+														%>
+							<span class="status-badge <%=badgeClass%>" title="<%=titleText%>"><i class="<%=uiIcon%>"></i><%=uiLabel%></span>
+							<%
+													}
+												}
 					%>
 </div>
 <%
