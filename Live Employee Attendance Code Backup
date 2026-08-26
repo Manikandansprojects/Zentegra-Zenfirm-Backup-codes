@@ -6,10 +6,10 @@
 	input.Next_btn = ifnull(input.Next_btn,"");
 	input.t = zoho.currentdate.toString("dd-MM-yyyy");
 	input.employee_email = zoho.loginuserid;
-// 	if(input.employee_email == "")
-// 	{
-// 		input.employee_email = zoho.loginuserid;
-// 	}
+	// 	if(input.employee_email == "")
+	// 	{
+	// 		input.employee_email = "manikandan@zenfirm.app";
+	// 	}
 	if(input.d == "")
 	{
 		baseDate = zoho.currentdate.toStartOfMonth();
@@ -129,15 +129,6 @@
 	// ============================================================
 	// ATTENDANCE
 	// ============================================================
-	// attendanceTimeMap:
-	// Stores the converted Time value.
-	//
-	// attendanceMinutesMap:
-	// Stores total worked minutes as a number.
-	//
-	// attendanceDisplayMap:
-	// Stores the original Final_Time text for the tooltip.
-	// ============================================================
 	attendanceTimeMap = Map();
 	attendanceMinutesMap = Map();
 	attendanceDisplayMap = Map();
@@ -156,9 +147,7 @@
 					if(recEmail == input.employee_email)
 					{
 						recDate = rec.get("Date");
-						// Read Final_Time first
 						finalTimeRaw = rec.get("Final_Time");
-						// Fallback for old response data
 						if(finalTimeRaw == null)
 						{
 							finalTimeRaw = rec.get("Hoursworked");
@@ -208,27 +197,17 @@
 							{
 								try 
 								{
-									// ====================================================
-									// CONVERT Final_Time STRING TO TIME VALUE
-									// Example: "05:34"
-									// ====================================================
 									formatPattern = "HH:mm";
 									finalTimeValue = finalTimeText.toTime(formatPattern);
-									// Use the methods from your example
 									timeashour = finalTimeValue.getHour().toNumber();
 									timeasminutes = finalTimeValue.getMinutes().toNumber();
-									// Correct 60-minute calculation
 									totalWorkedMinutes = timeashour * 60 + timeasminutes;
 									attendanceKey = recDateObj.toString("yyyy-MM-dd");
-									// Store the converted Time value
 									attendanceTimeMap.put(attendanceKey,finalTimeValue);
-									// Store total minutes for comparison
 									attendanceMinutesMap.put(attendanceKey,totalWorkedMinutes);
-									// Store original value for tooltip
 									attendanceDisplayMap.put(attendanceKey,finalTimeText);
 								}								catch (eTimeConversion)
 								{
-									// Invalid Final_Time values are ignored
 								}
 							}
 						}
@@ -329,9 +308,6 @@
 	leaveBrs = List();
 	try 
 	{
-		// Fetch approved leaves
-		// Employee email is checked first.
-		// Employee name is used as fallback.
 		for each  leaveEntry in Request_Leave[Approval_status == "Approved"]
 		{
 			leaveEmployeeEmail = "";
@@ -537,6 +513,7 @@
 			margin: 0;
 			padding: 0;
 			box-sizing: border-box;
+			text-decoration: none;
 		}
 
 		html,
@@ -547,18 +524,40 @@
 			padding: 0;
 			overflow: hidden;
 			background: #f5f7fb;
+			text-decoration: none;
 		}
-
+		
+			
 		body {
 			font-family: Inter, Arial, Helvetica, sans-serif;
 			color: #1f2937;
 			font-size: 10px;
+			text-decoration: none;
 		}
 
+		.zc-menu-nav-island-hz .zc-menu-list .zc-menu-item-has-sub .zc-menu-toggle {
+			text-decoration: none;
+			}
+			
+		.zc-app-name-square-v4 .zc-app-name-link {
+			text-decoration: none;
+			}
+			
+		.zc-popover.zc-user-account-popup .zc-user-action .zc-popover-list-cont .zc-popover-list a {
+			border-radius: 8px;
+			text-decoration: none;
+			}
+		
+		.zc-user-account-popup .zc-user-name+a {
+			display: block;
+			text-decoration: none;
+		}
+			
 		.app-shell {
 			height: 100%;
 			overflow: auto;
 			padding: 18px 22px 16px;
+			text-decoration: none;
 		}
 
 		.top-navbar {
@@ -568,12 +567,14 @@
 			gap: 16px;
 			margin-bottom: 16px;
 			flex-wrap: wrap;
+			text-decoration: none;
 		}
 
 		.brand-wrap {
 			display: flex;
 			align-items: center;
 			gap: 12px;
+			text-decoration: none;
 		}
 
 		.brand-cal-icon {
@@ -587,6 +588,7 @@
 			justify-content: center;
 			box-shadow: 0 8px 18px rgba(109,94,252,0.12);
 			overflow: hidden;
+			text-decoration: none;
 		}
 
 		.brand-cal-icon img {
@@ -919,7 +921,7 @@
 
 		.calendar-weekday-header div {
 			text-align: center;
-			font-size: 10px;
+			font-size: 12px;
 			font-weight: 600;
 			color: #6b7280;
 			padding: 10px 4px;
@@ -935,6 +937,7 @@
 		}
 
 		.calendar-day-cell {
+			position: relative;
 			min-height: 84px;
 			padding: 8px;
 			background: #fff;
@@ -942,6 +945,19 @@
 			flex-direction: column;
 			align-items: stretch;
 			border-right: 1px solid #edf0f4;
+		}
+		
+		.present-crown {
+			position: absolute;
+			right: 14px;
+			bottom: 6px;
+			width: 21px;
+			height: 19px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			color: #16a34a;
+			font-size: 10px;
 		}
 
 		.calendar-day-cell:last-child {
@@ -1039,7 +1055,7 @@
 		}
 
 		.status-badge i {
-			font-size: 12px;
+			font-size: 16px;
 		}
 
 		.status-fd {
@@ -1198,9 +1214,8 @@
 			position: relative;
 			z-index: 1;
 			background: #fff;
-			width: 510px;
-			height: 690px;
-			max-width: 730px;
+			width: 500px;
+			max-width: 720px;
 			border-radius: 16px;
 			box-shadow: 0 24px 60px rgba(16,24,40,0.28);
 			overflow: hidden;
@@ -1251,7 +1266,7 @@
 
 		.sh-modal-body iframe {
 			width: 100%;
-			height: 650px;
+			height: 630px;
 			border: 0;
 			display: block;
 		}
@@ -1307,7 +1322,7 @@
 
 		<div class="nav-center">
 			<div class="month-nav">
-				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=false&employee_email=<%=input.employee_email%>" class="month-nav-btn">
+				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=false" class="month-nav-btn">
 					<i class="fas fa-chevron-left"></i>
 				</a>
 
@@ -1316,12 +1331,12 @@
 					<%=baseDate.toString("MMMM yyyy")%>
 				</span>
 
-				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=true&employee_email=<%=input.employee_email%>" class="month-nav-btn">
+				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=true" class="month-nav-btn">
 					<i class="fas fa-chevron-right"></i>
 				</a>
 			</div>
 
-			<a href="#Page:emp_attendance?d=<%=zoho.currentdate.toString("dd-MMM-yyyy")%>&employee_email=<%=input.employee_email%>" class="today-btn">
+			<a href="#Page:emp_attendance?d=<%=zoho.currentdate.toString("dd-MMM-yyyy")%>" class="today-btn">
 				<i class="far fa-calendar"></i>
 				Today
 			</a>
@@ -1395,9 +1410,6 @@
 				{
 					isFuture = cellDate > zoho.currentdate;
 					dateKey = cellDate.toString("yyyy-MM-dd");
-					// ====================================================
-					// HOLIDAY CHECK
-					// ====================================================
 					holidayName = "";
 					isHoliday = false;
 					holidayIndex = 0;
@@ -1430,9 +1442,6 @@
 					}
 					else
 					{
-						// ====================================================
-						// LEAVE CHECK
-						// ====================================================
 						hasLeave = false;
 						leaveType = "";
 						brVal = "";
@@ -1462,9 +1471,6 @@
 								isHalfDay = true;
 							}
 						}
-						// ====================================================
-						// GET CONVERTED FINAL_TIME
-						// ====================================================
 						finalTimeValue = attendanceTimeMap.get(dateKey);
 						hasPunch = finalTimeValue != null;
 						workedMinutes = 0;
@@ -1474,22 +1480,17 @@
 							workedMinutes = attendanceMinutesMap.get(dateKey);
 							finalTimeDisplay = ifnull(attendanceDisplayMap.get(dateKey),"").toString();
 						}
-						// ====================================================
-						// ATTENDANCE STATUS
-						// ====================================================
 						if(hasPunch)
 						{
-							// 480 minutes = 8 hours
 							if(workedMinutes >= fullDayMinutes)
 							{
 								displayStatus = "P";
 								badgeClass = "status-fd";
-								titleText = "Present |  Worked In Hours: " + finalTimeDisplay + " | Worked In Minutes: " + workedMinutes;
+								titleText = "Present | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 								rowPresent = rowPresent + 1;
 							}
 							else if(hasLeave && isHalfDay)
 							{
-								// 240 minutes = 4 hours
 								if(workedMinutes >= halfDayMinutes)
 								{
 									rowPresent = rowPresent + 0.5;
@@ -1520,7 +1521,7 @@
 									badgeClass = if(isFH,"status-cl1","status-cl2");
 									rowCL = rowCL + leaveIncrement;
 								}
-								titleText = displayStatus + " + Worked | Worked In Hours: " + finalTimeDisplay + " | Worked In Minutes: " + workedMinutes;
+								titleText = displayStatus + " + Worked | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							}
 							else if(hasLeave && !isHalfDay)
 							{
@@ -1543,7 +1544,7 @@
 									badgeClass = "status-leave-casual";
 									rowCL = rowCL + 1.0;
 								}
-								titleText = displayStatus + " Full Day Leave | Worked In Hours: " + finalTimeDisplay + " | Worked In Minutes: " + workedMinutes;
+								titleText = displayStatus + " Full Day Leave | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							}
 							else
 							{
@@ -1551,7 +1552,7 @@
 								{
 									displayStatus = "";
 									badgeClass = "";
-									titleText = "Today in progress | Worked In Hours: " + finalTimeDisplay + " | Worked In Minutes: " + workedMinutes;
+									titleText = "Today in progress | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 								}
 								else
 								{
@@ -1570,7 +1571,7 @@
 									hdLinkUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G?&Employee=" + targetEmpID + "&Date_field=" + dateFormatted;
 									displayStatus = "SH";
 									badgeClass = "status-sh";
-									titleText = "Short Hours | Worked In Hours: " + finalTimeDisplay + " | Worked In Minutes: " + workedMinutes + " | Click To Regularize";
+									titleText = "Short Hours | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
 								}
 							}
 						}
@@ -1643,9 +1644,6 @@
 							}
 						}
 					}
-					// ====================================================
-					// UI LABELS
-					// ====================================================
 					if(displayStatus == "P")
 					{
 						uiLabel = "Present";
@@ -1774,6 +1772,7 @@
 										<span class="status-badge <%=badgeClass%>">
 											<i class="<%=uiIcon%>"></i>
 											<%=uiLabel%>
+											<%=finalTimeDisplay%>
 										</span>
 										<br>
 										<span class="desp">
@@ -1822,6 +1821,15 @@
 					%>
 </div>
 <%
+					// ====================================================
+					// CROWN ICON FOR PRESENT DAYS (right-bottom)
+					// ====================================================
+					if(displayStatus == "P")
+					{
+						%>
+<div class="present-crown"><i class="fas fa-crown"><%=finalTimeDisplay%></i></div>
+<%
+					}
 				}
 				%>
 </div>
