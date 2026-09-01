@@ -1,4 +1,3 @@
-
 <%{
 	// ============================================================
 	// PAGE PARAMETERS
@@ -12,9 +11,7 @@
 // 	{
 // 		input.employee_email = "manikandan@zenfirm.app";
 // 	}
-
 	nextBtnValue = ifnull(input.Next_btn,"").toString();
-
 	if(input.d == "")
 	{
 		baseDate = zoho.currentdate.toStartOfMonth();
@@ -35,11 +32,9 @@
 			baseDate = paramDate;
 		}
 	}
-
 	monthStart = baseDate;
 	monthEnd = baseDate.addMonth(1).subDay(1);
 	daysInMonth = monthEnd.day();
-
 	// ============================================================
 	// CALENDAR POSITION
 	// ============================================================
@@ -73,11 +68,9 @@
 	{
 		leadOffset = 6;
 	}
-
 	gridStart = baseDate.subDay(leadOffset);
 	totalCells = leadOffset + daysInMonth;
 	totalWeeks = (totalCells - 1) / 7 + 1;
-
 	maxWeekSlots = {0,1,2,3,4,5};
 	weekIndexList = List();
 	for each  wk in maxWeekSlots
@@ -87,9 +80,7 @@
 			weekIndexList.add(wk);
 		}
 	}
-
 	dowIndexList = {0,1,2,3,4,5,6};
-
 	// ============================================================
 	// EMPLOYEE AND PROFILE PHOTO
 	// ============================================================
@@ -98,65 +89,52 @@
 	zcReportLinkName = "All_Employee";
 	zcFieldLinkName = "Profile_Photo";
 	zcPhotoPrivateLink = "nZgWpJXmEh8dgtJur7bPpHAkM2YQ20z9Ntn15D9YtN8v2VzrTk1ezQsh65vrUzzQkAtyTAEkEYe6rW3dWyut3P3QuNeWwBgwfsT5";
-
 	targetEmpName = "";
 	targetEmpID = "";
 	targetEmpPhoto = "";
 	targetemployeerole = "";
 	targetemployeedprt = "";
-
 	for each  emp in Employee[Email == input.employee_email]
 	{
 		targetEmpName = ifnull(emp.Name,"");
 		targetEmpID = emp.ID;
-
 		try 
 		{
 			targetemployeerole = ifnull(emp.Role.Role,"");
-		}
-		catch (eRole)
+		}		catch (eRole)
 		{
 			targetemployeerole = "";
 		}
-
 		try 
 		{
 			targetemployeedprt = ifnull(emp.Department.Department_Name,"");
-		}
-		catch (eDepartment)
+		}		catch (eDepartment)
 		{
 			targetemployeedprt = "";
 		}
-
 		if(targetEmpID != null && targetEmpID.toString() != "")
 		{
 			targetEmpPhoto = "https://creator.zoho.in/publishapi/v2/" + zcAccountOwnerName + "/" + zcAppLinkName + "/report/" + zcReportLinkName + "/" + targetEmpID.toString() + "/" + zcFieldLinkName + "/download?privatelink=" + zcPhotoPrivateLink;
 		}
 	}
-
 	if(targetEmpName == "" && input.employee_email != "")
 	{
 		targetEmpName = input.employee_email;
 	}
-
 	fallbackAvatar = "https://ui-avatars.com/api/?name=" + zoho.encryption.urlEncode(ifnull(targetEmpName,"NA")) + "&background=4361ee&color=fff&size=80";
 	photoSource = fallbackAvatar;
-
 	if(targetEmpPhoto != "")
 	{
 		photoSource = targetEmpPhoto;
 	}
-
 	// ============================================================
 	// ATTENDANCE
 	// ============================================================
 	attendanceTimeMap = Map();
 	attendanceMinutesMap = Map();
 	attendanceDisplayMap = Map();
-
 	fullDayMinutes = 480;
 	halfDayMinutes = 240;
-
 	try 
 	{
 		apmData = thisapp.attendance_app.Get_Employee_Data_From_APM();
@@ -175,48 +153,40 @@
 						{
 							finalTimeRaw = rec.get("Hoursworked");
 						}
-
 						finalTimeText = ifnull(finalTimeRaw,"").toString().trim();
-
 						if(recDate != null && finalTimeText != "")
 						{
 							gotDate = false;
-
 							try 
 							{
 								recDateObj = recDate.toDate("yyyy-MM-dd");
 								gotDate = true;
-							}
-							catch (eDate1)
+							}							catch (eDate1)
 							{
 								try 
 								{
 									recDateObj = recDate.toDate("dd-MMM-yyyy");
 									gotDate = true;
-								}
-								catch (eDate2)
+								}								catch (eDate2)
 								{
 									try 
 									{
 										recDateObj = recDate.toDate("dd-MM-yyyy");
 										gotDate = true;
-									}
-									catch (eDate3)
+									}									catch (eDate3)
 									{
 										try 
 										{
 											recDateObj = recDate.toDate("MM-dd-yyyy");
 											gotDate = true;
-										}
-										catch (eDate4)
+										}										catch (eDate4)
 										{
 											try 
 											{
 												recDateObj = recDate;
 												yearValue = recDate.getYear();
 												gotDate = true;
-											}
-											catch (eDate5)
+											}											catch (eDate5)
 											{
 												gotDate = false;
 											}
@@ -224,7 +194,6 @@
 									}
 								}
 							}
-
 							if(gotDate && recDateObj >= monthStart && recDateObj <= monthEnd)
 							{
 								try 
@@ -234,13 +203,11 @@
 									timeashour = finalTimeValue.getHour().toNumber();
 									timeasminutes = finalTimeValue.getMinutes().toNumber();
 									totalWorkedMinutes = timeashour * 60 + timeasminutes;
-
 									attendanceKey = recDateObj.toString("yyyy-MM-dd");
 									attendanceTimeMap.put(attendanceKey,finalTimeValue);
 									attendanceMinutesMap.put(attendanceKey,totalWorkedMinutes);
 									attendanceDisplayMap.put(attendanceKey,finalTimeText);
-								}
-								catch (eTimeConversion)
+								}								catch (eTimeConversion)
 								{
 								}
 							}
@@ -249,17 +216,14 @@
 				}
 			}
 		}
-	}
-	catch (eAttendance)
+	}	catch (eAttendance)
 	{
 	}
-
 	// ============================================================
 	// HOLIDAYS
 	// ============================================================
 	holidayDates = List();
 	holidayNames = List();
-
 	try 
 	{
 		for each  hRec in Holiday_Calendar
@@ -269,90 +233,74 @@
 			{
 				hObj = null;
 				parsedOK = false;
-
 				try 
 				{
 					hObj = rawHolidayVal.toDate("MM-dd-yyyy");
 					parsedOK = true;
-				}
-				catch (eHoliday1)
+				}				catch (eHoliday1)
 				{
 				}
-
 				if(!parsedOK)
 				{
 					try 
 					{
 						hObj = rawHolidayVal.toDate("yyyy-MM-dd");
 						parsedOK = true;
-					}
-					catch (eHoliday2)
+					}					catch (eHoliday2)
 					{
 					}
 				}
-
 				if(!parsedOK)
 				{
 					try 
 					{
 						hObj = rawHolidayVal.toDate("dd-MMM-yyyy");
 						parsedOK = true;
-					}
-					catch (eHoliday3)
+					}					catch (eHoliday3)
 					{
 					}
 				}
-
 				if(!parsedOK)
 				{
 					try 
 					{
 						hObj = rawHolidayVal.toDate("dd-MM-yyyy");
 						parsedOK = true;
-					}
-					catch (eHoliday4)
+					}					catch (eHoliday4)
 					{
 					}
 				}
-
 				if(!parsedOK)
 				{
 					try 
 					{
 						hObj = hRec.Date_field;
 						parsedOK = true;
-					}
-					catch (eHoliday5)
+					}					catch (eHoliday5)
 					{
 					}
 				}
-
 				if(parsedOK && hObj != null)
 				{
 					if(hObj >= monthStart && hObj <= monthEnd)
 					{
 						holidayDates.add(hObj.toString("yyyy-MM-dd"));
-
 						holidayName = "Holiday";
 						try 
 						{
 							holidayName = ifnull(hRec.Event_Name,"Holiday").toString();
-						}
-						catch (eHolidayName)
+						}						catch (eHolidayName)
 						{
 							holidayName = "Holiday";
 						}
-
 						holidayNames.add(holidayName);
 					}
 				}
 			}
 		}
-	}
-	catch (eHolidayAll)
+	}	catch (eHolidayAll)
 	{
 	}
-
 	// ============================================================
 	// LEAVES
 	// Store First Half, Second Half and Full Day separately
@@ -361,7 +309,6 @@
 	leaveFullMap = Map();
 	leaveFHMap = Map();
 	leaveSHMap = Map();
-
 	try 
 	{
 		for each  leaveEntry in Request_Leave[Approval_status == "Approved"]
@@ -369,46 +316,36 @@
 			leaveEmployeeEmail = "";
 			leaveEmployeeName = "";
 			leaveEmployeeID = "";
-
 			try 
 			{
 				leaveEmployeeEmail = ifnull(leaveEntry.Employee_Name.Email,"").toString().trim();
-			}
-			catch (eLeaveEmail)
+			}			catch (eLeaveEmail)
 			{
 				leaveEmployeeEmail = "";
 			}
-
 			try 
 			{
 				leaveEmployeeName = ifnull(leaveEntry.Employee_Name.Name,"").toString().trim();
-			}
-			catch (eLeaveName)
+			}			catch (eLeaveName)
 			{
 				leaveEmployeeName = "";
 			}
-
 			try 
 			{
 				leaveEmployeeID = ifnull(leaveEntry.Employee_Name.ID,"").toString().trim();
-			}
-			catch (eLeaveID)
+			}			catch (eLeaveID)
 			{
 				leaveEmployeeID = "";
 			}
-
 			leaveMatches = false;
-
 			if(leaveEmployeeEmail != "" && input.employee_email != "" && leaveEmployeeEmail.toLowerCase() == input.employee_email.toLowerCase())
 			{
 				leaveMatches = true;
 			}
-
 			if(!leaveMatches && leaveEmployeeID != "" && targetEmpID != null && targetEmpID.toString() != "" && leaveEmployeeID == targetEmpID.toString())
 			{
 				leaveMatches = true;
 			}
-
 			if(!leaveMatches && leaveEmployeeName != "" && targetEmpName != "")
 			{
 				if(leaveEmployeeName.toLowerCase() == targetEmpName.toLowerCase())
@@ -416,33 +353,26 @@
 					leaveMatches = true;
 				}
 			}
-
 			if(!leaveMatches)
 			{
 				continue;
 			}
-
 			parentFrom = null;
 			parentTo = null;
-
 			try 
 			{
 				parentFrom = leaveEntry.From;
-			}
-			catch (eParentFrom)
+			}			catch (eParentFrom)
 			{
 				parentFrom = null;
 			}
-
 			try 
 			{
 				parentTo = leaveEntry.To;
-			}
-			catch (eParentTo)
+			}			catch (eParentTo)
 			{
 				parentTo = null;
 			}
-
 			if(parentFrom != null && parentTo != null)
 			{
 				if(parentTo < monthStart || parentFrom > monthEnd)
@@ -450,68 +380,54 @@
 					continue;
 				}
 			}
-
 			for each  detail in leaveEntry.Leave_Days_Details
 			{
 				leaveDateObj = null;
-
 				try 
 				{
 					leaveDateObj = detail.Date_field;
-				}
-				catch (eSubDate1)
+				}				catch (eSubDate1)
 				{
 					leaveDateObj = null;
 				}
-
 				if(leaveDateObj == null)
 				{
 					try 
 					{
 						leaveDateObj = detail.Date_field;
-					}
-					catch (eSubDate2)
+					}					catch (eSubDate2)
 					{
 						leaveDateObj = null;
 					}
 				}
-
 				if(leaveDateObj == null)
 				{
 					continue;
 				}
-
 				if(leaveDateObj < monthStart || leaveDateObj > monthEnd)
 				{
 					continue;
 				}
-
 				leaveTypeRaw = "";
-
 				try 
 				{
 					leaveTypeRaw = ifnull(detail.Leave_Type.Leave_Type,"").toString().trim();
-				}
-				catch (eSubType1)
+				}				catch (eSubType1)
 				{
 					leaveTypeRaw = "";
 				}
-
 				if(leaveTypeRaw == "")
 				{
 					try 
 					{
 						leaveTypeRaw = ifnull(detail.Leave_Type,"").toString().trim();
-					}
-					catch (eSubType2)
+					}					catch (eSubType2)
 					{
 						leaveTypeRaw = "";
 					}
 				}
-
 				leaveTypeUpper = leaveTypeRaw.toUpperCase();
 				finalLeaveType = "CL";
-
 				if(leaveTypeUpper.contains("SICK"))
 				{
 					finalLeaveType = "SL";
@@ -524,21 +440,16 @@
 				{
 					finalLeaveType = "CL";
 				}
-
 				dayTypeStr = "";
 				brVal = "";
-
 				try 
 				{
 					dayTypeStr = ifnull(detail.br,"").toString().trim();
-				}
-				catch (eSubBr)
+				}				catch (eSubBr)
 				{
 					dayTypeStr = "";
 				}
-
 				dayTypeLower = dayTypeStr.toLowerCase();
-
 				if(dayTypeLower.contains("first half") || dayTypeLower.contains("1st half") || dayTypeLower.contains("1st") || dayTypeLower == "fh" || dayTypeLower.contains("fh"))
 				{
 					brVal = "FH";
@@ -555,16 +466,13 @@
 				{
 					brVal = "";
 				}
-
 				leaveDateKey = leaveDateObj.toString("yyyy-MM-dd");
-
 				leaveInfo = Map();
 				leaveInfo.put("leave_type",finalLeaveType);
 				leaveInfo.put("day_type",dayTypeStr);
 				leaveInfo.put("employee_id",targetEmpID);
 				leaveInfo.put("br",brVal);
 				leaveInfo.put("raw_leave_type",leaveTypeRaw);
-
 				if(brVal == "FH")
 				{
 					leaveFHMap.put(leaveDateKey,leaveInfo);
@@ -590,11 +498,9 @@
 				}
 			}
 		}
-	}
-	catch (eLeavesAll)
+	}	catch (eLeavesAll)
 	{
 	}
-
 	// ============================================================
 	// SUMMARY VARIABLES
 	// ============================================================
@@ -1073,14 +979,14 @@
 			font-size: 10px;
 
 			/* Very thin border */
-				-webkit-text-stroke: 0.7px #999;			
-		}
+			-webkit-text-stroke: 0.7px #999;		
+			}
 		
 		
 		.p {
 			margin-top: 40px;
 			margin-bottom: 1rem;
-			color: Black;
+			color: black;
 		}
 
 		.calendar-day-cell:last-child {
@@ -1526,7 +1432,7 @@
 	if(input.employee_email == "")
 	{
 		%>
-		<div class="no-employee-msg">
+<div class="no-employee-msg">
 			No employee selected. Add <code>employee_email</code> to the page URL to view a calendar.
 		</div>
 <%
@@ -1534,7 +1440,7 @@
 	else
 	{
 		%>
-		<div class="content-grid">
+<div class="content-grid">
 
 			<aside class="profile-card">
 				<img src="<%=photoSource%>" class="emp-avatar-lg" alt="<%=ifnull(targetEmpName,"Employee")%>" onerror="this.onerror=null;this.src='<%=fallbackAvatar%>';">
@@ -1560,7 +1466,7 @@
 		for each  weekNum in weekIndexList
 		{
 			%>
-				<div class="calendar-week-row">
+<div class="calendar-week-row">
 <%
 			for each  dow in dowIndexList
 			{
@@ -1569,19 +1475,15 @@
 				inMonth = cellDate.toStartOfMonth() == baseDate;
 				isWeekendCol = dow == 0 || dow == 6;
 				isToday = cellDate.toString("dd-MM-yyyy") == input.t;
-
 				cellClasses = "calendar-day-cell";
-
 				if(isToday && inMonth)
 				{
 					cellClasses = cellClasses + " today-cell";
 				}
-
 				if(!inMonth)
 				{
 					cellClasses = cellClasses + " empty-cell";
 				}
-
 				displayStatus = "";
 				badgeClass = "";
 				titleText = "";
@@ -1597,16 +1499,13 @@
 				finalTimeDisplay = "";
 				punchTableFull = "";
 				statusWrapClass = "cell-status";
-
 				if(inMonth)
 				{
 					isFuture = cellDate > zoho.currentdate;
 					dateKey = cellDate.toString("yyyy-MM-dd");
-
 					holidayName = "";
 					isHoliday = false;
 					holidayIndex = 0;
-
 					for each  holidayDateKey in holidayDates
 					{
 						if(!isHoliday && holidayDateKey == dateKey)
@@ -1616,7 +1515,6 @@
 						}
 						holidayIndex = holidayIndex + 1;
 					}
-
 					if(isHoliday)
 					{
 						displayStatus = "H";
@@ -1640,17 +1538,14 @@
 						leaveFullInfo = leaveFullMap.get(dateKey);
 						leaveFHInfo = leaveFHMap.get(dateKey);
 						leaveSHInfo = leaveSHMap.get(dateKey);
-
 						hasFullLeave = leaveFullInfo != null;
 						hasFHLeave = leaveFHInfo != null;
 						hasSHLeave = leaveSHInfo != null;
 						isSplitLeave = hasFHLeave && hasSHLeave && !hasFullLeave;
 						hasLeave = hasFullLeave || hasFHLeave || hasSHLeave;
-
 						leaveType = "";
 						isHalfDay = false;
 						isFH = false;
-
 						if(hasFullLeave)
 						{
 							leaveType = ifnull(leaveFullInfo.get("leave_type"),"").toString();
@@ -1671,18 +1566,15 @@
 							isHalfDay = true;
 							isFH = false;
 						}
-
 						finalTimeValue = attendanceTimeMap.get(dateKey);
 						hasPunch = finalTimeValue != null;
 						workedMinutes = 0;
 						finalTimeDisplay = "";
-
 						if(hasPunch)
 						{
 							workedMinutes = attendanceMinutesMap.get(dateKey);
 							finalTimeDisplay = ifnull(attendanceDisplayMap.get(dateKey),"").toString();
 						}
-
 						if(hasPunch && workedMinutes >= fullDayMinutes)
 						{
 							displayStatus = "P";
@@ -1694,9 +1586,7 @@
 						{
 							fhType = ifnull(leaveFHInfo.get("leave_type"),"CL").toString();
 							shType = ifnull(leaveSHInfo.get("leave_type"),"CL").toString();
-
 							rowAbsent = rowAbsent + 1.0;
-
 							if(fhType == "SL")
 							{
 								rowSL = rowSL + 0.5;
@@ -1718,7 +1608,6 @@
 								badgeClass = "status-cl1";
 								uiIcon = "fas fa-briefcase";
 							}
-
 							if(shType == "SL")
 							{
 								rowSL = rowSL + 0.5;
@@ -1740,7 +1629,6 @@
 								badgeClass2 = "status-cl2";
 								uiIcon2 = "fas fa-briefcase";
 							}
-
 							displayStatus = "SPLIT";
 							isSplitDisplay = true;
 							titleText = uiLabel + " + " + uiLabel2;
@@ -1762,9 +1650,7 @@
 									rowAbsent = rowAbsent + 1.0;
 									rowPureAbsent = rowPureAbsent + 0.5;
 								}
-
 								leaveIncrement = 0.5;
-
 								if(leaveType == "SL")
 								{
 									displayStatus = if(isFH,"SL 1st","SL 2nd");
@@ -1783,13 +1669,11 @@
 									badgeClass = if(isFH,"status-cl1","status-cl2");
 									rowCL = rowCL + leaveIncrement;
 								}
-
 								titleText = displayStatus + " + Worked | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							}
 							else if(hasLeave && !isHalfDay)
 							{
 								rowAbsent = rowAbsent + 1.0;
-
 								if(leaveType == "SL")
 								{
 									displayStatus = "SL";
@@ -1808,7 +1692,6 @@
 									badgeClass = "status-leave-casual";
 									rowCL = rowCL + 1.0;
 								}
-
 								titleText = displayStatus + " Full Day Leave | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							}
 							else
@@ -1832,7 +1715,6 @@
 										rowAbsent = rowAbsent + 1.0;
 										rowPureAbsent = rowPureAbsent + 1.0;
 									}
-
 									// ============================================================
 									// ATTENDANCE REGULARIZATION ONLY
 									// Updated: removed preview HTML and removed plain param
@@ -1840,25 +1722,26 @@
 									dateFormatted = cellDate.toString("dd-MMM-yyyy");
 									empLongID = ifnull(targetEmpID,"0").toLong();
 									// 1. Generate Full HTML Table (for Popup Preview)
-									punchTableFull = "";
-									try 
-									{
-										punchTableFull = thisapp.Timesheets.generateAttendanceHTMLL(empLongID,cellDate);
-									}									catch (eFullTbl)
-									{
-										punchTableFull = "";
-									}
+// 									punchTableFull = "";
+// 									try 
+// 									{
+// 										punchTableFull = thisapp.Timesheets.test_employee_calendar_htmlll(empLongID,cellDate);
+// 									}
+// 									catch (eFullTbl)
+// 									{
+// 										punchTableFull = null;
+// 									}
 									// 2. Generate Compact HTML (for URL Param) - Optional if URL is too long
 									// For now we pass the full table, but encoded
 									dateFormatted = cellDate.toString("dd-MMM-yyyy");
-									encoded_html = zoho.encryption.urlEncode(ifnull(punchTableFull,""));
+// 									encoded_html = zoho.encryption.urlEncode(ifnull(punchTableFull,""));
 									baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
-									hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=" + false;
+									hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
 									// Safety guard for URL length (Creator breaks above ~2000 chars)
-									if(encoded_html.length() > 1)
-									{
-										hdLinkUrl = hdLinkUrl + "&plain=" + encoded_html;
-									}
+// 									if(encoded_html.length() > 1)
+// 									{
+// 										hdLinkUrl = hdLinkUrl + "&plain=" + encoded_html;
+// 									}
 									displayStatus = "SH";
 									badgeClass = "status-sh";
 									titleText = "Short Hours | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
@@ -1872,7 +1755,6 @@
 								rowAbsent = rowAbsent + 1.0;
 								rowPureAbsent = rowPureAbsent + 0.5;
 								leaveIncrement = 0.5;
-
 								if(leaveType == "SL")
 								{
 									displayStatus = if(isFH,"SL 1st","SL 2nd");
@@ -1891,13 +1773,11 @@
 									badgeClass = if(isFH,"status-cl1","status-cl2");
 									rowCL = rowCL + leaveIncrement;
 								}
-
 								titleText = displayStatus + " + Absent";
 							}
 							else
 							{
 								rowAbsent = rowAbsent + 1.0;
-
 								if(leaveType == "SL")
 								{
 									displayStatus = "SL";
@@ -1916,7 +1796,6 @@
 									badgeClass = "status-leave-casual";
 									rowCL = rowCL + 1.0;
 								}
-
 								titleText = displayStatus + " Full Day Leave";
 							}
 						}
@@ -1938,7 +1817,6 @@
 							}
 						}
 					}
-
 					if(!isSplitDisplay)
 					{
 						if(displayStatus == "P")
@@ -2027,9 +1905,7 @@
 						}
 					}
 				}
-
 				dayNumClass = "day-number";
-
 				if(inMonth)
 				{
 					if(dow == 0)
@@ -2042,7 +1918,7 @@
 					}
 				}
 				%>
-					<div class="<%=cellClasses%>" title="<%=titleText%>">
+<div class="<%=cellClasses%>" title="<%=titleText%>">
 						<div class="<%=dayNumClass%>">
 							<%=cellDate.toString("dd")%>
 						</div>
@@ -2050,12 +1926,12 @@
 				if(inMonth)
 				{
 					%>
-						<div class="<%=statusWrapClass%>">
+<div class="<%=statusWrapClass%>">
 <%
 					if(showDash)
 					{
 						%>
-							<span class="text-muted" style="opacity:0.35;font-weight:600;font-size:16px;">
+<span class="text-muted" style="opacity:0.35;font-weight:600;font-size:16px;">
 								&mdash;
 							</span>
 <%
@@ -2066,7 +1942,7 @@
 						{
 							shId = "sh_" + cellDate.toString("yyyyMMdd");
 							%>
-							<input type="checkbox" id="<%=shId%>" class="sh-toggle">
+<input type="checkbox" id="<%=shId%>" class="sh-toggle">
 
 							<label for="<%=shId%>" class="hd-link" title="<%=titleText%>">
 								<span class="status-badge <%=badgeClass%>">
@@ -2111,7 +1987,7 @@
 						else
 						{
 							%>
-							<span class="status-badge <%=badgeClass%>" title="<%=titleText%>">
+<span class="status-badge <%=badgeClass%>" title="<%=titleText%>">
 								<i class="<%=uiIcon%>"></i>
 								<%=uiLabel%>
 							</span>
@@ -2119,7 +1995,7 @@
 							if(uiLabel2 != "")
 							{
 								%>
-							<span class="status-badge <%=badgeClass2%>" title="<%=titleText%>">
+<span class="status-badge <%=badgeClass2%>" title="<%=titleText%>">
 								<i class="<%=uiIcon2%>"></i>
 								<%=uiLabel2%>
 							</span>
@@ -2128,24 +2004,25 @@
 						}
 					}
 					%>
-						</div>
+</div>
 <%
 					if(displayStatus == "P")
 					{
 						%>
-							<div class="present-crown"><i class="fas fa-crown"></i><p style="margin-top: 20px; color: Black;">&nbsp;&nbsp;<%=finalTimeDisplay%></p></div><%
+<div class="present-crown"><i class="fas fa-crown"></i><p style="margin-top: 20px; color: black;">&nbsp;&nbsp;<%=finalTimeDisplay%></p></div>
+<%
 					}
 				}
 				%>
-					</div>
+</div>
 <%
 			}
 			%>
-				</div>
+</div>
 <%
 		}
 		%>
-			</div>
+</div>
 
 			<aside class="leave-summary-card">
 				<div class="leave-summary-title">
