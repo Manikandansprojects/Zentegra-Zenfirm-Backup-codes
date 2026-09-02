@@ -1,0 +1,88 @@
+string Timesheets.generateAttendanceHTML(int employee_id, date attendance_date)
+{
+	htmlContent = "";
+	totalMinutes = 0;
+	currentInTime = null;
+	rowNumber = 0;
+	htmlContent = htmlContent + "<table style='width:100%;border-collapse:collapse;font-size:13px;'>" + "<thead>" + "<tr style='background-color:#f3f5f7;'>" + "<th style='padding:10px;border:1px solid #d8dde3;text-align:center;width:50px;'>#</th>" + "<th style='padding:10px;border:1px solid #d8dde3;text-align:left;'>In Time</th>" + "<th style='padding:10px;border:1px solid #d8dde3;text-align:left;'>Out Time</th>" + "<th style='padding:10px;border:1px solid #d8dde3;text-align:center;'>Duration</th>" + "</tr>" + "</thead>" + "<tbody>";
+	/*
+	Replace the following with your actual API names:
+
+	Attendance_Logs   = Attendance form
+	Employee          = Employee lookup field
+	Attendance_Date   = Date field
+	Punch_Date_Time   = Punch date-time field
+	Punch_Type        = In/Out field
+	*/
+	emp_obj = Employee[ID == input.employee_id];
+	if(emp_obj.Organization.Organization_Name == "NMG")
+	{
+		if(emp_obj.Work_Shift.Shift_Name == "Shift A" || emp_obj.Work_Shift.Shift_Name == "Shift B")
+		{
+			shift_start_time = (input.attendance_date.toString() + " " + emp_obj.Work_Shift.Shift_Start_Time1.toString()).toTime().subHour(1);
+			shift_end_time = (input.attendance_date.toString() + " " + emp_obj.Work_Shift.Shift_End_Time.toString()).toTime().addHour(2);
+		}
+		else
+		{
+			shift_start_time = (input.attendance_date.toString() + " " + emp_obj.Work_Shift.Shift_Start_Time1.toString()).toTime().subHour(1);
+			shift_end_time = (input.attendance_date.addDay(1).toString() + " " + emp_obj.Work_Shift.Shift_End_Time.toString()).toTime().addHour(2);
+		}
+	}
+	else
+	{
+		shift_start_time = (input.attendance_date.toString() + " " + emp_obj.Work_Shift.Shift_Start_Time1.toString()).toTime().subHour(1);
+		shift_end_time = (input.attendance_date.toString() + " " + emp_obj.Work_Shift.Shift_End_Time.toString()).toTime().addHour(2);
+	}
+	attendanceRecords = Punch[Employee == employee_id && Punch_Time >= shift_start_time && Punch_Time <= shift_end_time] sort by Punch_Time asc;
+	for each  attendanceRecord in attendanceRecords
+	{
+		punchType = attendanceRecord.Check;
+		punchTime = attendanceRecord.Punch_Time;
+		if(punchType != null && punchTime != null)
+		{
+			if(punchType.equalsIgnoreCase("In"))
+			{
+				// Keep the first unmatched In record
+				if(currentInTime == null)
+				{
+					currentInTime = punchTime;
+				}
+			}
+			else if(punchType.equalsIgnoreCase("Out"))
+			{
+				if(currentInTime != null && punchTime.toLong() >= currentInTime.toLong())
+				{
+					diffMillis = punchTime.toLong() - currentInTime.toLong();
+					rowMinutes = (diffMillis / 60000).toLong();
+					rowHours = (rowMinutes / 60).toLong();
+					remainingMinutes = rowMinutes % 60;
+					minuteText = remainingMinutes.toString();
+					if(remainingMinutes < 10)
+					{
+						minuteText = "0" + minuteText;
+					}
+					durationText = rowHours.toString() + "." + minuteText;
+					totalMinutes = totalMinutes + rowMinutes;
+					rowNumber = rowNumber + 1;
+					htmlContent = htmlContent + "<tr>" + "<td style='padding:9px;border:1px solid #d8dde3;text-align:center;'>" + rowNumber + "</td>" + "<td style='padding:9px;border:1px solid #d8dde3;'>" + currentInTime.toString("dd-MMM-yyyy hh:mm:ss a") + "</td>" + "<td style='padding:9px;border:1px solid #d8dde3;'>" + punchTime.toString("dd-MMM-yyyy hh:mm:ss a") + "</td>" + "<td style='padding:9px;border:1px solid #d8dde3;text-align:center;font-weight:bold;'>" + durationText + "</td>" + "</tr>";
+					// Reset after successful In-Out pairing
+					currentInTime = null;
+				}
+			}
+		}
+	}
+	if(rowNumber == 0)
+	{
+		htmlContent = htmlContent + "<tr>" + "<td colspan='4' style='padding:20px;border:1px solid #d8dde3;text-align:center;color:#777777;'>" + "No valid In and Out attendance pairs found." + "</td>" + "</tr>";
+	}
+	totalHours = (totalMinutes / 60).toLong();
+	totalRemainingMinutes = totalMinutes % 60;
+	totalMinuteText = totalRemainingMinutes.toString();
+	if(totalRemainingMinutes < 10)
+	{
+		totalMinuteText = "0" + totalMinuteText;
+	}
+	formattedTotal = totalHours.toString() + "." + totalMinuteText;
+	htmlContent = htmlContent + "</tbody>" + "<tfoot>" + "<tr style='background-color:#eef6ff;'>" + "<td colspan='3' style='padding:12px;border:1px solid #d8dde3;text-align:right;font-weight:bold;'>" + "Total Hours" + "</td>" + "<td style='padding:12px;border:1px solid #d8dde3;text-align:center;font-size:15px;font-weight:bold;'>" + formattedTotal + "</td>" + "</tr>" + "</tfoot>" + "</table>" + "</div>";
+	return htmlContent;
+}
