@@ -1,0 +1,121 @@
+string Timesheets.generateAttendanceHTMLL(int empId, date punchDate)
+{
+	rowsHtml = "";
+	sno = 0;
+	totalSecs = 0;
+	lastInTime = null;
+	lastPunchTime = null;
+	try 
+	{
+		// Date boundary fallback to ensure no punches are missed
+		dtStart = (punchDate.toString("yyyy-MM-dd") + " 00:00:00").toDateTime("yyyy-MM-dd HH:mm:ss");
+		dtEnd = (punchDate.toString("yyyy-MM-dd") + " 23:59:59").toDateTime("yyyy-MM-dd HH:mm:ss");
+		// Fetch punches sorted ascending by time
+		punchList = Punch[Employee == empId && Date_field == punchDate || (Punch_Time >= dtStart && Punch_Time <= dtEnd)] sort by Punch_Time asc;
+		for each  p in punchList
+		{
+			chkVal = ifnull(p.Check,"").toString().trim().toLowerCase();
+			pTime = p.Punch_Time;
+			if(pTime != null)
+			{
+				// Ignore rapid duplicate scans within 15 seconds of previous punch
+				if(lastPunchTime != null)
+				{
+					var_one = pTime.getHour() * 3600 + pTime.getMinutes() * 60 + pTime.toString("ss").toLong();
+					var_two = lastPunchTime.toString("hh").toNumber() * 3600 + lastPunchTime.toString("mm").toNumber() * 60 + lastPunchTime.toString("ss").toLong();
+					diffSecs = var_one - var_two;
+					if(diffSecs >= 0 && diffSecs < 15)
+					{
+						continue;
+					}
+				}
+				// Loose matching for Check-In / Check-Out variations
+				isIn = chkVal.contains("in") && !chkVal.contains("out");
+				isOut = chkVal.contains("out");
+				if(isIn)
+				{
+					// If previous IN was not closed (Missed OUT)
+					if(lastInTime != null)
+					{
+						sno = sno + 1;
+						rowsHtml = rowsHtml + "<tr style='border-bottom: 1px solid #f1f5f9;'><td style='padding: 8px 12px; color: #64748b; font-weight: 500;'>" + sno + "</td><td style='padding: 8px 12px; color: #0f172a; font-weight: 600;'>" + lastInTime.toString("hh:mm:ss a") + "</td><td style='padding: 8px 12px; color: #94a3b8;'>-</td><td align='right' style='padding: 8px 12px; color: #94a3b8;'>-</td></tr>";
+					}
+					lastInTime = pTime;
+					lastPunchTime = pTime;
+				}
+				else if(isOut)
+				{
+					if(lastInTime != null)
+					{
+						inSec = lastInTime.getHour() * 3600 + lastInTime.getMinutes() * 60 + lastInTime.toString("ss").toLong();
+						outSec = pTime.getHour() * 3600 + pTime.getMinutes() * 60 + pTime.toString("ss").toLong();
+						diffSec = outSec - inSec;
+						if(diffSec < 0)
+						{
+							diffSec = diffSec + 86400;
+							// Handle overnight shift
+						}
+						totalSecs = totalSecs + diffSec;
+						sno = sno + 1;
+						// Convert row seconds into HH:mm:ss
+						hh = (diffSec / 3600).toLong();
+						remSec = diffSec % 3600;
+						mm = (remSec / 60).toLong();
+						ss = (remSec % 60).toLong();
+						hhTxt = if(hh < 10,"0" + hh,hh.toString());
+						mmTxt = if(mm < 10,"0" + mm,mm.toString());
+						ssTxt = if(ss < 10,"0" + ss,ss.toString());
+						rowWorked = hhTxt + ":" + mmTxt + ":" + ssTxt;
+						rowsHtml = rowsHtml + "<tr style='border-bottom: 1px solid #f1f5f9;'><td style='padding: 8px 12px; color: #64748b; font-weight: 500;'>" + sno + "</td><td style='padding: 8px 12px; color: #0f172a; font-weight: 600;'>" + lastInTime.toString("hh:mm:ss a") + "</td><td style='padding: 8px 12px; color: #0f172a; font-weight: 600;'>" + pTime.toString("hh:mm:ss a") + "</td><td align='right' style='padding: 8px 12px; color: #1e293b; font-weight: 700;'>" + rowWorked + "</td></tr>";
+						lastInTime = null;
+						lastPunchTime = pTime;
+					}
+					else
+					{
+						// Standalone OUT without matching IN
+						sno = sno + 1;
+						rowsHtml = rowsHtml + "<tr style='border-bottom: 1px solid #f1f5f9;'><td style='padding: 8px 12px; color: #64748b; font-weight: 500;'>" + sno + "</td><td style='padding: 8px 12px; color: #94a3b8;'>-</td><td style='padding: 8px 12px; color: #0f172a; font-weight: 600;'>" + pTime.toString("hh:mm:ss a") + "</td><td align='right' style='padding: 8px 12px; color: #94a3b8;'>-</td></tr>";
+						lastPunchTime = pTime;
+					}
+				}
+			}
+		}
+		// Trailing open IN
+		if(lastInTime != null)
+		{
+			sno = sno + 1;
+			rowsHtml = rowsHtml + "<tr style='border-bottom: 1px solid #f1f5f9;'><td style='padding: 8px 12px; color: #64748b; font-weight: 500;'>" + sno + "</td><td style='padding: 8px 12px; color: #0f172a; font-weight: 600;'>" + lastInTime.toString("hh:mm:ss a") + "</td><td style='padding: 8px 12px; color: #94a3b8;'>-</td><td align='right' style='padding: 8px 12px; color: #94a3b8;'>-</td></tr>";
+		}
+	}	catch (ePunch)
+	{
+		rowsHtml = "<tr><td colspan='4' style='padding: 12px; color: #ef4444; text-align: center;'>Error fetching punches</td></tr>";
+	}
+	if(rowsHtml == "")
+	{
+		return "<div style='padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; color: #64748b; font-family: Inter, sans-serif; font-size: 13px; text-align: center;'>No punch records for " + punchDate + "</div>";
+	}
+	// Convert total cumulative seconds into HH:mm:ss
+	tHH = (totalSecs / 3600).toLong();
+	tRemSec = totalSecs % 3600;
+	tMM = (tRemSec / 60).toLong();
+	tSS = (tRemSec % 60).toLong();
+	tHHTxt = if(tHH < 10,"0" + tHH,tHH.toString());
+	tMMTxt = if(tMM < 10,"0" + tMM,tMM.toString());
+	tSSTxt = if(tSS < 10,"0" + tSS,tSS.toString());
+	totalWorkedFormatted = tHHTxt + ":" + tMMTxt + ":" + tSSTxt;
+	outHtml = "<div style='overflow: hidden; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; font-size: 13px;'>";
+	outHtml = outHtml + "<table cellspacing='0' cellpadding='0' style='width: 100%; border-collapse: collapse; text-align: left;'>";
+	outHtml = outHtml + "<thead><tr style='background: #1b355a; color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;'>";
+	outHtml = outHtml + "<th style='padding: 10px 12px; font-weight: 600; width: 50px;'>S.No.</th>";
+	outHtml = outHtml + "<th style='padding: 10px 12px; font-weight: 600;'>Check-In</th>";
+	outHtml = outHtml + "<th style='padding: 10px 12px; font-weight: 600;'>Check-Out</th>";
+	outHtml = outHtml + "<th align='right' style='padding: 10px 12px; font-weight: 600; width: 100px;'>Worked</th>";
+	outHtml = outHtml + "</tr></thead>";
+	outHtml = outHtml + "<tbody>" + rowsHtml + "</tbody>";
+	outHtml = outHtml + "<tfoot><tr style='background: #f8fafc; border-top: 2px solid #e2e8f0; font-weight: 700;'>";
+	outHtml = outHtml + "<td colspan='3' align='right' style='padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569;'>Total Hours</td>";
+	outHtml = outHtml + "<td align='right' style='padding: 10px 12px; color: #1b355a; font-size: 14px; font-weight: 700;'>" + totalWorkedFormatted + "</td>";
+	outHtml = outHtml + "</tr></tfoot>";
+	outHtml = outHtml + "</table></div>";
+	return outHtml;
+}
