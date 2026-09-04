@@ -1,12 +1,17 @@
 <%{
 	// ============================================================
 	// PAGE PARAMETERS
+	// ============================================================// ============================================================
+	// LIVE CURRENT TIME (for TODAY cell)
 	// ============================================================
+	liveNow = zoho.currenttime;
+	liveHour = liveNow.getHour();
+	liveMin = liveNow.getMinutes();
 	input.d = ifnull(input.d,"");
 	input.Next_btn = ifnull(input.Next_btn,"");
 	input.t = zoho.currentdate.toString("dd-MM-yyyy");
 	input.employee_email = zoho.loginuserid;
-// 	input.employee_email = ifnull(input.employee_email,"ajay@zenfirm.app");
+// 	// Add this map near the other attendance maps
 // 	if(input.employee_email == "")
 // 	{
 // 		input.employee_email = "manikandan@zenfirm.app";
@@ -94,6 +99,7 @@
 	targetEmpPhoto = "";
 	targetemployeerole = "";
 	targetemployeedprt = "";
+	isManagerFlag = false;
 	for each  emp in Employee[Email == input.employee_email]
 	{
 		targetEmpName = ifnull(emp.Name,"");
@@ -112,7 +118,31 @@
 		{
 			targetemployeedprt = "";
 		}
-		if(targetEmpID != null && targetEmpID.toString() != "")
+		try 
+		{
+			if(ifnull(emp.Is_Manager,"").toString().trim().equalsIgnoreCase("true"))
+			{
+				isManagerFlag = true;
+			}
+		}		catch (eMgr)
+		{
+			isManagerFlag = false;
+		}
+		// ---- CHECK IF PROFILE PHOTO IS ACTUALLY UPLOADED ----
+		photoFileName = "";
+		try 
+		{
+			photoFileName = ifnull(emp.Profile_Photo,"").toString().trim();
+		}		catch (ePhotoField)
+		{
+			photoFileName = "";
+		}
+		hasPhoto = false;
+		if(photoFileName != "" && photoFileName != "null" && photoFileName != "-")
+		{
+			hasPhoto = true;
+		}
+		if(hasPhoto && targetEmpID != null && targetEmpID.toString() != "")
 		{
 			targetEmpPhoto = "https://creator.zoho.in/publishapi/v2/" + zcAccountOwnerName + "/" + zcAppLinkName + "/report/" + zcReportLinkName + "/" + targetEmpID.toString() + "/" + zcFieldLinkName + "/download?privatelink=" + zcPhotoPrivateLink;
 		}
@@ -121,7 +151,14 @@
 	{
 		targetEmpName = input.employee_email;
 	}
-	fallbackAvatar = "https://ui-avatars.com/api/?name=" + zoho.encryption.urlEncode(ifnull(targetEmpName,"NA")) + "&background=4361ee&color=fff&size=80";
+	// ---- FALLBACKS ----
+	avatarName = ifnull(targetEmpName,"NA");
+	if(avatarName == "")
+	{
+		avatarName = "NA";
+	}
+	fallbackAvatar = "https://ui-avatars.com/api/?name=" + zoho.encryption.urlEncode(avatarName) + "&background=5b21b6&color=fff&size=180&bold=true";
+	genericAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 	photoSource = fallbackAvatar;
 	if(targetEmpPhoto != "")
 	{
@@ -133,6 +170,7 @@
 	attendanceTimeMap = Map();
 	attendanceMinutesMap = Map();
 	attendanceDisplayMap = Map();
+	attendanceCheckInMap = Map();
 	fullDayMinutes = 480;
 	halfDayMinutes = 240;
 	try 
@@ -154,6 +192,26 @@
 							finalTimeRaw = rec.get("Hoursworked");
 						}
 						finalTimeText = ifnull(finalTimeRaw,"").toString().trim();
+						// ✅ CORRECT: Extract Check-In from Punches SUBFORM (Without using 'break')
+						checkInText = "";
+						punchesList = rec.get("Punches");
+						// Get the subform list
+						if(punchesList != null && punchesList.size() > 0)
+						{
+							for each  punchRec in punchesList
+							{
+								punchCheck = ifnull(punchRec.get("Check"),"").toString();
+								// Only grab the first 'In' punch without breaking the loop
+								if(punchCheck.equalsIgnoreCase("In") && checkInText == "")
+								{
+									punchTime = ifnull(punchRec.get("Punch Time"),"");
+									if(punchTime != null && punchTime.toString() != "")
+									{
+										checkInText = punchTime.toString();
+									}
+								}
+							}
+						}
 						if(recDate != null && finalTimeText != "")
 						{
 							gotDate = false;
@@ -203,10 +261,17 @@
 									timeashour = finalTimeValue.getHour().toNumber();
 									timeasminutes = finalTimeValue.getMinutes().toNumber();
 									totalWorkedMinutes = timeashour * 60 + timeasminutes;
+									// ✅ attendanceKey defined HERE FIRST
 									attendanceKey = recDateObj.toString("yyyy-MM-dd");
+									// ✅ NOW store all data (attendanceKey exists!)
 									attendanceTimeMap.put(attendanceKey,finalTimeValue);
 									attendanceMinutesMap.put(attendanceKey,totalWorkedMinutes);
 									attendanceDisplayMap.put(attendanceKey,finalTimeText);
+									// ✅ Store Check-In time (attendanceKey now exists!)
+									if(checkInText != "")
+									{
+										attendanceCheckInMap.put(attendanceKey,checkInText);
+									}
 								}								catch (eTimeConversion)
 								{
 								}
@@ -579,6 +644,19 @@
 			text-decoration: none;
 		}
 
+		.calendar-btn button {
+			background: #5b21b6;
+			color: white;
+			border: 0;
+			border-radius: 6px;
+			padding: 7px 14px;
+			font-size: 11px;
+			font-family: Arial, sans-serif;
+			cursor: pointer;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+			font-size: 12px;
+		}
+		
 		.top-navbar {
 			display: flex;
 			align-items: center;
@@ -663,6 +741,22 @@
 		}
 
 		.current-month {
+			min-width: 140px;
+			height: 30px;
+			padding: 0 14px;
+			border-radius: 8px;
+			border: 1px solid #4c1d95;
+			background: #5b21b6;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			font-size: 11px;
+			font-weight: 600;
+			color: #fff;
+			box-shadow: 0 2px 6px rgba(91,33,182,0.35);
+		}
+		.all-employee-calendar {
 			min-width: 140px;
 			height: 30px;
 			padding: 0 14px;
@@ -1357,6 +1451,91 @@
 			top: 0;
 		}
 
+		/* ============ TODAY CELL - NEW CLEAN DESIGN ============ */
+		.today-working-badge {
+			position: relative;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 30px;
+			height: 30px;
+			border-radius: 50%;
+			background: #eef2ff;
+			color: #4338ca;
+			box-shadow: 0 2px 4px rgba(67,56,202,0.15);
+		}
+
+		.today-working-badge i {
+			font-size: 14px;
+		}
+
+		.working-pulse-dot {
+			position: absolute;
+			top: -2px;
+			right: -2px;
+			width: 9px;
+			height: 9px;
+			border-radius: 50%;
+			background: #22c55e;
+			border: 2px solid #fff;
+			animation: workingPulse 1.5s infinite;
+		}
+
+		@keyframes workingPulse {
+			0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+			70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+			100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+		}
+
+		.today-regularize-link {
+			display: inline-block;
+			margin-top: 5px;
+			padding: 3px 8px;
+			border-radius: 6px;
+			background: #5b21b6;
+			color: #fff !important;
+			font-size: 9px;
+			font-weight: 600;
+			cursor: pointer;
+			text-decoration: none;
+		}
+
+		.today-regularize-link:hover {
+			background: #4c1d95;
+		}
+
+		/* Remove old today styling that you don't want */
+		.calendar-day-cell.today-cell {
+			box-shadow: inset 0 0 0 2px #6d5efc;
+		}
+
+		.cell-today-bg {
+			background-color: #f5f3ff !important;
+		}
+		
+		body {
+			animation: pageEnter 0.7s ease-out;
+		}
+
+		@keyframes pageEnter {
+			from {
+				opacity: 0;
+				transform: translateY(15px);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+
+		@keyframes todayPulse {
+			0%, 100% { box-shadow: 0 0 0 0 rgba(91,33,182,0.45); }
+			50%      { box-shadow: 0 0 0 5px rgba(91,33,182,0); }
+		}
+
+		@media print {
+			.desp-today { animation: none; box-shadow: none; }
+		}
 		@media (max-width: 1100px) {
 			.content-grid {
 				grid-template-columns: 1fr;
@@ -1407,7 +1586,22 @@
 		</div>
 
 		<div class="nav-center">
-			<div class="month-nav">
+<%
+	if(emp.Is_Manager == "True")
+	{
+		%>
+<span class="current-month">
+				<i class="fas fa-users"></i>  				
+				<a href="https://zenattendance.zohocreatorportal.in/#Attendance_Page1"
+				   target="_blank"
+				   class="calendar-btn">
+				   <button><b>All Employee Calendar</b></button>
+				</a>
+				</span>
+<%
+	}
+	%>
+<div class="month-nav">
 				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=false" class="month-nav-btn">
 					<i class="fas fa-chevron-left"></i>
 				</a>
@@ -1443,7 +1637,11 @@
 <div class="content-grid">
 
 			<aside class="profile-card">
-				<img src="<%=photoSource%>" class="emp-avatar-lg" alt="<%=ifnull(targetEmpName,"Employee")%>" onerror="this.onerror=null;this.src='<%=fallbackAvatar%>';">
+				<img src="<%=photoSource%>"
+				     class="emp-avatar-lg"
+				     alt="<%=ifnull(targetEmpName,"Employee")%>"
+				     onerror="if(!this.dataset.f){this.dataset.f=1;this.src='<%=fallbackAvatar%>';}else{this.onerror=null;this.src='<%=genericAvatar%>';}">
+				
 				<div class="profile-name">
 					<%=if(targetEmpName == "","No Employee Selected",targetEmpName)%>
 				</div>
@@ -1496,7 +1694,9 @@
 				badgeClass2 = "";
 				uiIcon2 = "";
 				isSplitDisplay = false;
+				descClass = "";
 				finalTimeDisplay = "";
+				liveTimeDisplay = "";
 				punchTableFull = "";
 				statusWrapClass = "cell-status";
 				if(inMonth)
@@ -1581,6 +1781,15 @@
 							badgeClass = "status-fd";
 							titleText = "Present | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							rowPresent = rowPresent + 1;
+							if(isToday)
+							{
+								dateFormatted = cellDate.toString("dd-MMM-yyyy");
+								baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
+								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
+								displayStatus = "TODAY";
+								badgeClass = "status-today";
+								titleText = "Present (Today) | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
+							}
 						}
 						else if(isSplitLeave)
 						{
@@ -1698,9 +1907,35 @@
 							{
 								if(isToday)
 								{
-									displayStatus = "";
-									badgeClass = "";
-									titleText = "Today in progress | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
+									// ---- TODAY: compute LIVE worked hours ----
+									liveWorkedMinutes = workedMinutes;
+									// If you have check-in time, compute live from check-in to now
+									todayCheckIn = attendanceCheckInMap.get(dateKey);
+									if(todayCheckIn != null && todayCheckIn.toString() != "")
+									{
+										try 
+										{
+											ciTime = todayCheckIn.toString().toTime("HH:mm");
+											ciMinutes = ciTime.getHour() * 60 + ciTime.getMinutes();
+											nowMinutes = liveHour * 60 + liveMin;
+											liveWorkedMinutes = nowMinutes - ciMinutes;
+											if(liveWorkedMinutes < 0)
+											{
+												liveWorkedMinutes = workedMinutes;
+											}
+										}										catch (eLive)
+										{
+											liveWorkedMinutes = workedMinutes;
+										}
+									}
+									liveH = (liveWorkedMinutes / 60).toNumber();
+									liveM = liveWorkedMinutes % 60;
+									liveTimeDisplay = liveH + "h " + liveM + "m";
+									dateFormatted = cellDate.toString("dd-MMM-yyyy");
+									baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
+									hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
+									displayStatus = "TODAY";
+									titleText = "Today | Worked: " + liveTimeDisplay + " | Click to regularize";
 								}
 								else
 								{
@@ -1722,26 +1957,26 @@
 									dateFormatted = cellDate.toString("dd-MMM-yyyy");
 									empLongID = ifnull(targetEmpID,"0").toLong();
 									// 1. Generate Full HTML Table (for Popup Preview)
-// 									punchTableFull = "";
-// 									try 
-// 									{
-// 										punchTableFull = thisapp.Timesheets.test_employee_calendar_htmlll(empLongID,cellDate);
-// 									}
-// 									catch (eFullTbl)
-// 									{
-// 										punchTableFull = null;
-// 									}
+									// 									punchTableFull = "";
+									// 									try 
+									// 									{
+									// 										punchTableFull = thisapp.Timesheets.test_employee_calendar_htmlll(empLongID,cellDate);
+									// 									}
+									// 									catch (eFullTbl)
+									// 									{
+									// 										punchTableFull = null;
+									// 									}
 									// 2. Generate Compact HTML (for URL Param) - Optional if URL is too long
 									// For now we pass the full table, but encoded
 									dateFormatted = cellDate.toString("dd-MMM-yyyy");
-// 									encoded_html = zoho.encryption.urlEncode(ifnull(punchTableFull,""));
+									// 									encoded_html = zoho.encryption.urlEncode(ifnull(punchTableFull,""));
 									baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
 									hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
 									// Safety guard for URL length (Creator breaks above ~2000 chars)
-// 									if(encoded_html.length() > 1)
-// 									{
-// 										hdLinkUrl = hdLinkUrl + "&plain=" + encoded_html;
-// 									}
+									// 									if(encoded_html.length() > 1)
+									// 									{
+									// 										hdLinkUrl = hdLinkUrl + "&plain=" + encoded_html;
+									// 									}
 									displayStatus = "SH";
 									badgeClass = "status-sh";
 									titleText = "Short Hours | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
@@ -1803,9 +2038,13 @@
 						{
 							if(isToday)
 							{
-								displayStatus = "";
-								badgeClass = "";
-								titleText = "Today";
+								// ---- TODAY: no punch yet ----
+								dateFormatted = cellDate.toString("dd-MMM-yyyy");
+								baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
+								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
+								displayStatus = "TODAY_NP";
+								badgeClass = "status-today";
+								titleText = "Today | No punch yet | Click to regularize";
 							}
 							else
 							{
@@ -1903,6 +2142,20 @@
 							uiLabel = "Week Off";
 							uiIcon = "fas fa-mug-hot";
 						}
+						else if(displayStatus == "TODAY")
+						{
+							uiLabel = "TODAY_LIVE";
+							cellClasses = cellClasses + " cell-today-bg";
+						}
+						else if(displayStatus == "TODAY_NP")
+						{
+							uiLabel = "TODAY_LIVE";
+							if(liveTimeDisplay == "")
+							{
+								liveTimeDisplay = "0h 0m";
+							}
+							cellClasses = cellClasses + " cell-today-bg";
+						}
 					}
 				}
 				dayNumClass = "day-number";
@@ -1928,12 +2181,70 @@
 					%>
 <div class="<%=statusWrapClass%>">
 <%
-					if(showDash)
+					// ============ NEW TODAY CELL CODE (PASTE HERE) ============
+					if(displayStatus == "TODAY" || displayStatus == "TODAY_NP")
+					{
+						shId = "sh_" + cellDate.toString("yyyyMMdd");
+						%>
+<input type="checkbox" id="<%=shId%>" class="sh-toggle">
+
+						<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+						<%
+							if(displayStatus == "TODAY")
+							{
+								%>
+						<span class="today-working-badge" title="Currently Working">
+									<i class="fas fa-desktop"></i>
+									<span class="working-pulse-dot"></span>
+								</span>
+						<%
+							}
+							else
+							{
+								%>
+						<span class="today-hours-badge">
+									<i class="fas fa-clock"></i>
+									<%=liveTimeDisplay%>
+								</span>
+						<%
+							}
+						%>
+							<label for="<%=shId%>" class="today-regularize-link">
+								Regularize Today
+							</label>
+						</div>
+
+						<div class="sh-modal-overlay">
+							<label for="<%=shId%>" class="sh-backdrop"></label>
+							<div class="sh-modal-box">
+								<div class="sh-modal-header">
+									<div>
+										<div class="sh-modal-title">
+											<i class="fas fa-clock"></i>
+											Attendance Regularization Request
+										</div>
+										<div class="sh-modal-sub">
+											This Request Goes To Your Reporting Manager &amp; HR
+										</div>
+									</div>
+									<label for="<%=shId%>" class="sh-modal-close">
+										<i class="fas fa-times"></i>
+									</label>
+								</div>
+								<div class="sh-modal-body">
+									<iframe src="<%=hdLinkUrl%>" loading="lazy" frameborder="0"></iframe>
+								</div>
+							</div>
+						</div>
+<%
+					}
+					// ============ END TODAY CELL CODE ============
+					else if(showDash)
 					{
 						%>
 <span class="text-muted" style="opacity:0.35;font-weight:600;font-size:16px;">
-								&mdash;
-							</span>
+							&mdash;
+						</span>
 <%
 					}
 					else if(uiLabel != "")
@@ -1951,7 +2262,7 @@
 									<%=finalTimeDisplay%>
 								</span>
 								<br>
-								<span class="desp">
+								<span class="desp <%=descClass%>">
 									<%=uiLabelDescription%>
 								</span>
 							</label>
