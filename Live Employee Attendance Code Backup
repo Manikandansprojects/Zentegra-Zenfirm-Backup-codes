@@ -1,8 +1,7 @@
 <%{
+	//Optimised code I got from AI
 	// ============================================================
 	// PAGE PARAMETERS
-	// ============================================================// ============================================================
-	// LIVE CURRENT TIME (for TODAY cell)
 	// ============================================================
 	liveNow = zoho.currenttime;
 	liveHour = liveNow.getHour();
@@ -11,11 +10,11 @@
 	input.Next_btn = ifnull(input.Next_btn,"");
 	input.t = zoho.currentdate.toString("dd-MM-yyyy");
 	input.employee_email = zoho.loginuserid;
-// 	// Add this map near the other attendance maps
-// 	if(input.employee_email == "")
-// 	{
-// 		input.employee_email = "manikandan@zenfirm.app";
-// 	}
+	// 	input.employee_email = ifnull(input.employee_email,"ajay@zenfirm.app");
+	// 	if(input.employee_email == "")
+	// 	{
+	// 		input.employee_email = "manikandan@zenfirm.app";
+	// 	}
 	nextBtnValue = ifnull(input.Next_btn,"").toString();
 	if(input.d == "")
 	{
@@ -43,42 +42,13 @@
 	// ============================================================
 	// CALENDAR POSITION
 	// ============================================================
-	firstDayName = baseDate.toString("EEE");
-	leadOffset = 0;
-	if(firstDayName == "Sun")
-	{
-		leadOffset = 0;
-	}
-	else if(firstDayName == "Mon")
-	{
-		leadOffset = 1;
-	}
-	else if(firstDayName == "Tue")
-	{
-		leadOffset = 2;
-	}
-	else if(firstDayName == "Wed")
-	{
-		leadOffset = 3;
-	}
-	else if(firstDayName == "Thu")
-	{
-		leadOffset = 4;
-	}
-	else if(firstDayName == "Fri")
-	{
-		leadOffset = 5;
-	}
-	else if(firstDayName == "Sat")
-	{
-		leadOffset = 6;
-	}
+	dowMap = {"Sun":0,"Mon":1,"Tue":2,"Wed":3,"Thu":4,"Fri":5,"Sat":6};
+	leadOffset = ifnull(dowMap.get(baseDate.toString("EEE")),0);
 	gridStart = baseDate.subDay(leadOffset);
 	totalCells = leadOffset + daysInMonth;
 	totalWeeks = (totalCells - 1) / 7 + 1;
-	maxWeekSlots = {0,1,2,3,4,5};
 	weekIndexList = List();
-	for each  wk in maxWeekSlots
+	for each  wk in {0,1,2,3,4,5}
 	{
 		if(wk < totalWeeks)
 		{
@@ -86,6 +56,10 @@
 		}
 	}
 	dowIndexList = {0,1,2,3,4,5,6};
+	// ============================================================
+	// COMMON URLS
+	// ============================================================
+	baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
 	// ============================================================
 	// EMPLOYEE AND PROFILE PHOTO
 	// ============================================================
@@ -128,7 +102,6 @@
 		{
 			isManagerFlag = false;
 		}
-		// ---- CHECK IF PROFILE PHOTO IS ACTUALLY UPLOADED ----
 		photoFileName = "";
 		try 
 		{
@@ -137,12 +110,7 @@
 		{
 			photoFileName = "";
 		}
-		hasPhoto = false;
-		if(photoFileName != "" && photoFileName != "null" && photoFileName != "-")
-		{
-			hasPhoto = true;
-		}
-		if(hasPhoto && targetEmpID != null && targetEmpID.toString() != "")
+		if(photoFileName != "" && photoFileName != "null" && photoFileName != "-" && targetEmpID != null && targetEmpID.toString() != "")
 		{
 			targetEmpPhoto = "https://creator.zoho.in/publishapi/v2/" + zcAccountOwnerName + "/" + zcAppLinkName + "/report/" + zcReportLinkName + "/" + targetEmpID.toString() + "/" + zcFieldLinkName + "/download?privatelink=" + zcPhotoPrivateLink;
 		}
@@ -151,7 +119,6 @@
 	{
 		targetEmpName = input.employee_email;
 	}
-	// ---- FALLBACKS ----
 	avatarName = ifnull(targetEmpName,"NA");
 	if(avatarName == "")
 	{
@@ -180,104 +147,93 @@
 		{
 			for each  rec in apmData
 			{
-				if(rec != null)
+				if(rec == null)
 				{
-					recEmail = ifnull(rec.get("EmployeeEmail"),"").toString();
-					if(recEmail == input.employee_email)
+					continue;
+				}
+				if(ifnull(rec.get("EmployeeEmail"),"").toString() != input.employee_email)
+				{
+					continue;
+				}
+				recDate = rec.get("Date");
+				if(recDate == null)
+				{
+					continue;
+				}
+				// ---- parse date (single attempt, fallbacks only on failure) ----
+				recDateObj = null;
+				try 
+				{
+					recDateObj = recDate.toDate();
+				}				catch (eDate1)
+				{
+					try 
 					{
-						recDate = rec.get("Date");
-						finalTimeRaw = rec.get("Final_Time");
-						if(finalTimeRaw == null)
+						recDateObj = recDate.toDate("yyyy-MM-dd");
+					}					catch (eDate2)
+					{
+						try 
 						{
-							finalTimeRaw = rec.get("Hoursworked");
-						}
-						finalTimeText = ifnull(finalTimeRaw,"").toString().trim();
-						// ✅ CORRECT: Extract Check-In from Punches SUBFORM (Without using 'break')
-						checkInText = "";
-						punchesList = rec.get("Punches");
-						// Get the subform list
-						if(punchesList != null && punchesList.size() > 0)
+							recDateObj = recDate.toDate("dd-MMM-yyyy");
+						}						catch (eDate3)
 						{
-							for each  punchRec in punchesList
-							{
-								punchCheck = ifnull(punchRec.get("Check"),"").toString();
-								// Only grab the first 'In' punch without breaking the loop
-								if(punchCheck.equalsIgnoreCase("In") && checkInText == "")
-								{
-									punchTime = ifnull(punchRec.get("Punch Time"),"");
-									if(punchTime != null && punchTime.toString() != "")
-									{
-										checkInText = punchTime.toString();
-									}
-								}
-							}
-						}
-						if(recDate != null && finalTimeText != "")
-						{
-							gotDate = false;
 							try 
 							{
-								recDateObj = recDate.toDate("yyyy-MM-dd");
-								gotDate = true;
-							}							catch (eDate1)
+								recDateObj = recDate.toDate("dd-MM-yyyy");
+							}							catch (eDate4)
 							{
 								try 
 								{
-									recDateObj = recDate.toDate("dd-MMM-yyyy");
-									gotDate = true;
-								}								catch (eDate2)
+									recDateObj = recDate.toDate("MM-dd-yyyy");
+								}								catch (eDate5)
 								{
-									try 
-									{
-										recDateObj = recDate.toDate("dd-MM-yyyy");
-										gotDate = true;
-									}									catch (eDate3)
-									{
-										try 
-										{
-											recDateObj = recDate.toDate("MM-dd-yyyy");
-											gotDate = true;
-										}										catch (eDate4)
-										{
-											try 
-											{
-												recDateObj = recDate;
-												yearValue = recDate.getYear();
-												gotDate = true;
-											}											catch (eDate5)
-											{
-												gotDate = false;
-											}
-										}
-									}
-								}
-							}
-							if(gotDate && recDateObj >= monthStart && recDateObj <= monthEnd)
-							{
-								try 
-								{
-									formatPattern = "HH:mm";
-									finalTimeValue = finalTimeText.toTime(formatPattern);
-									timeashour = finalTimeValue.getHour().toNumber();
-									timeasminutes = finalTimeValue.getMinutes().toNumber();
-									totalWorkedMinutes = timeashour * 60 + timeasminutes;
-									// ✅ attendanceKey defined HERE FIRST
-									attendanceKey = recDateObj.toString("yyyy-MM-dd");
-									// ✅ NOW store all data (attendanceKey exists!)
-									attendanceTimeMap.put(attendanceKey,finalTimeValue);
-									attendanceMinutesMap.put(attendanceKey,totalWorkedMinutes);
-									attendanceDisplayMap.put(attendanceKey,finalTimeText);
-									// ✅ Store Check-In time (attendanceKey now exists!)
-									if(checkInText != "")
-									{
-										attendanceCheckInMap.put(attendanceKey,checkInText);
-									}
-								}								catch (eTimeConversion)
-								{
+									recDateObj = null;
 								}
 							}
 						}
 					}
+				}
+				if(recDateObj == null || recDateObj < monthStart || recDateObj > monthEnd)
+				{
+					continue;
+				}
+				finalTimeRaw = rec.get("Final_Time");
+				if(finalTimeRaw == null)
+				{
+					finalTimeRaw = rec.get("Hoursworked");
+				}
+				finalTimeText = ifnull(finalTimeRaw,"").toString().trim();
+				if(finalTimeText == "")
+				{
+					continue;
+				}
+				try 
+				{
+					finalTimeValue = finalTimeText.toTime("HH:mm");
+					totalWorkedMinutes = finalTimeValue.getHour().toNumber() * 60 + finalTimeValue.getMinutes().toNumber();
+					attendanceKey = recDateObj.toString("yyyy-MM-dd");
+					attendanceTimeMap.put(attendanceKey,finalTimeValue);
+					attendanceMinutesMap.put(attendanceKey,totalWorkedMinutes);
+					attendanceDisplayMap.put(attendanceKey,finalTimeText);
+					// ---- first "In" punch (only for in-month records) ----
+					checkInText = "";
+					punchesList = rec.get("Punches");
+					if(punchesList != null && punchesList.size() > 0)
+					{
+						for each  punchRec in punchesList
+						{
+							if(checkInText == "" && ifnull(punchRec.get("Check"),"").toString().equalsIgnoreCase("In"))
+							{
+								checkInText = ifnull(punchRec.get("Punch Time"),"").toString();
+							}
+						}
+					}
+					if(checkInText != "")
+					{
+						attendanceCheckInMap.put(attendanceKey,checkInText);
+					}
+				}				catch (eTimeConversion)
+				{
 				}
 			}
 		}
@@ -285,166 +241,41 @@
 	{
 	}
 	// ============================================================
-	// HOLIDAYS
+	// HOLIDAYS (month-filtered, Map lookup)
 	// ============================================================
-	holidayDates = List();
-	holidayNames = List();
+	holidayMap = Map();
 	try 
 	{
-		for each  hRec in Holiday_Calendar
+		for each  hRec in Holiday_Calendar[Date_field >= monthStart && Date_field <= monthEnd]
 		{
-			rawHolidayVal = ifnull(hRec.Date_field,"").toString();
-			if(rawHolidayVal != "")
+			hObj = hRec.Date_field;
+			if(hObj != null)
 			{
-				hObj = null;
-				parsedOK = false;
+				holidayName = "Holiday";
 				try 
 				{
-					hObj = rawHolidayVal.toDate("MM-dd-yyyy");
-					parsedOK = true;
-				}				catch (eHoliday1)
+					holidayName = ifnull(hRec.Event_Name,"Holiday").toString();
+				}				catch (eHolidayName)
 				{
+					holidayName = "Holiday";
 				}
-				if(!parsedOK)
-				{
-					try 
-					{
-						hObj = rawHolidayVal.toDate("yyyy-MM-dd");
-						parsedOK = true;
-					}					catch (eHoliday2)
-					{
-					}
-				}
-				if(!parsedOK)
-				{
-					try 
-					{
-						hObj = rawHolidayVal.toDate("dd-MMM-yyyy");
-						parsedOK = true;
-					}					catch (eHoliday3)
-					{
-					}
-				}
-				if(!parsedOK)
-				{
-					try 
-					{
-						hObj = rawHolidayVal.toDate("dd-MM-yyyy");
-						parsedOK = true;
-					}					catch (eHoliday4)
-					{
-					}
-				}
-				if(!parsedOK)
-				{
-					try 
-					{
-						hObj = hRec.Date_field;
-						parsedOK = true;
-					}					catch (eHoliday5)
-					{
-					}
-				}
-				if(parsedOK && hObj != null)
-				{
-					if(hObj >= monthStart && hObj <= monthEnd)
-					{
-						holidayDates.add(hObj.toString("yyyy-MM-dd"));
-						holidayName = "Holiday";
-						try 
-						{
-							holidayName = ifnull(hRec.Event_Name,"Holiday").toString();
-						}						catch (eHolidayName)
-						{
-							holidayName = "Holiday";
-						}
-						holidayNames.add(holidayName);
-					}
-				}
+				holidayMap.put(hObj.toString("yyyy-MM-dd"),holidayName);
 			}
 		}
 	}	catch (eHolidayAll)
 	{
 	}
 	// ============================================================
-	// LEAVES
-	// Store First Half, Second Half and Full Day separately
-	// so the same date can have CL 1st + SL 2nd
+	// LEAVES (query-filtered by employee + month)
 	// ============================================================
 	leaveFullMap = Map();
 	leaveFHMap = Map();
 	leaveSHMap = Map();
 	try 
 	{
-		for each  leaveEntry in Request_Leave[Approval_status == "Approved"]
+		leaveEmpID = ifnull(targetEmpID,0).toLong();
+		for each  leaveEntry in Request_Leave[Approval_status == "Approved" && Employee_Name.Email == input.employee_email || Employee_Name == leaveEmpID || Employee_Name.Name == targetEmpName && From <= monthEnd && To >= monthStart]
 		{
-			leaveEmployeeEmail = "";
-			leaveEmployeeName = "";
-			leaveEmployeeID = "";
-			try 
-			{
-				leaveEmployeeEmail = ifnull(leaveEntry.Employee_Name.Email,"").toString().trim();
-			}			catch (eLeaveEmail)
-			{
-				leaveEmployeeEmail = "";
-			}
-			try 
-			{
-				leaveEmployeeName = ifnull(leaveEntry.Employee_Name.Name,"").toString().trim();
-			}			catch (eLeaveName)
-			{
-				leaveEmployeeName = "";
-			}
-			try 
-			{
-				leaveEmployeeID = ifnull(leaveEntry.Employee_Name.ID,"").toString().trim();
-			}			catch (eLeaveID)
-			{
-				leaveEmployeeID = "";
-			}
-			leaveMatches = false;
-			if(leaveEmployeeEmail != "" && input.employee_email != "" && leaveEmployeeEmail.toLowerCase() == input.employee_email.toLowerCase())
-			{
-				leaveMatches = true;
-			}
-			if(!leaveMatches && leaveEmployeeID != "" && targetEmpID != null && targetEmpID.toString() != "" && leaveEmployeeID == targetEmpID.toString())
-			{
-				leaveMatches = true;
-			}
-			if(!leaveMatches && leaveEmployeeName != "" && targetEmpName != "")
-			{
-				if(leaveEmployeeName.toLowerCase() == targetEmpName.toLowerCase())
-				{
-					leaveMatches = true;
-				}
-			}
-			if(!leaveMatches)
-			{
-				continue;
-			}
-			parentFrom = null;
-			parentTo = null;
-			try 
-			{
-				parentFrom = leaveEntry.From;
-			}			catch (eParentFrom)
-			{
-				parentFrom = null;
-			}
-			try 
-			{
-				parentTo = leaveEntry.To;
-			}			catch (eParentTo)
-			{
-				parentTo = null;
-			}
-			if(parentFrom != null && parentTo != null)
-			{
-				if(parentTo < monthStart || parentFrom > monthEnd)
-				{
-					continue;
-				}
-			}
 			for each  detail in leaveEntry.Leave_Days_Details
 			{
 				leaveDateObj = null;
@@ -455,21 +286,7 @@
 				{
 					leaveDateObj = null;
 				}
-				if(leaveDateObj == null)
-				{
-					try 
-					{
-						leaveDateObj = detail.Date_field;
-					}					catch (eSubDate2)
-					{
-						leaveDateObj = null;
-					}
-				}
-				if(leaveDateObj == null)
-				{
-					continue;
-				}
-				if(leaveDateObj < monthStart || leaveDateObj > monthEnd)
+				if(leaveDateObj == null || leaveDateObj < monthStart || leaveDateObj > monthEnd)
 				{
 					continue;
 				}
@@ -501,12 +318,7 @@
 				{
 					finalLeaveType = "LOP";
 				}
-				else if(leaveTypeUpper.contains("CASUAL") || leaveTypeUpper.contains("PLANED") || leaveTypeUpper.contains("PLANNED"))
-				{
-					finalLeaveType = "CL";
-				}
 				dayTypeStr = "";
-				brVal = "";
 				try 
 				{
 					dayTypeStr = ifnull(detail.br,"").toString().trim();
@@ -515,21 +327,18 @@
 					dayTypeStr = "";
 				}
 				dayTypeLower = dayTypeStr.toLowerCase();
-				if(dayTypeLower.contains("first half") || dayTypeLower.contains("1st half") || dayTypeLower.contains("1st") || dayTypeLower == "fh" || dayTypeLower.contains("fh"))
+				brVal = "";
+				if(dayTypeLower.contains("first half") || dayTypeLower.contains("1st") || dayTypeLower.contains("fh"))
 				{
 					brVal = "FH";
 				}
-				else if(dayTypeLower.contains("second half") || dayTypeLower.contains("2nd half") || dayTypeLower.contains("2nd") || dayTypeLower == "sh" || dayTypeLower.contains("sh"))
+				else if(dayTypeLower.contains("second half") || dayTypeLower.contains("2nd") || dayTypeLower.contains("sh"))
 				{
 					brVal = "SH";
 				}
 				else if(dayTypeLower.contains("half"))
 				{
 					brVal = "half";
-				}
-				else
-				{
-					brVal = "";
 				}
 				leaveDateKey = leaveDateObj.toString("yyyy-MM-dd");
 				leaveInfo = Map();
@@ -567,6 +376,26 @@
 	{
 	}
 	// ============================================================
+	// STATUS META (label, icon, extra cell class)
+	// ============================================================
+	statusMeta = Map();
+	statusMeta.put("P",{"Present","fas fa-circle"," cell-present-bg"});
+	statusMeta.put("SH",{"Short Hours","fas fa-clock"," cell-sh-bg"});
+	statusMeta.put("A",{"Absent","fas fa-user-xmark"," cell-absent-bg"});
+	statusMeta.put("H",{"Holiday","fas fa-umbrella-beach"," cell-holiday-bg"});
+	statusMeta.put("CL",{"Casual Leave","fas fa-briefcase"," cell-cl-bg"});
+	statusMeta.put("CL 1st",{"CL 1st Half","fas fa-briefcase"," cell-cl-bg"});
+	statusMeta.put("CL 2nd",{"CL 2nd Half","fas fa-briefcase"," cell-cl-bg"});
+	statusMeta.put("SL",{"Sick Leave","fas fa-briefcase"," cell-sl-bg"});
+	statusMeta.put("SL 1st",{"SL 1st Half","fas fa-briefcase"," cell-sl-bg"});
+	statusMeta.put("SL 2nd",{"SL 2nd Half","fas fa-briefcase"," cell-sl-bg"});
+	statusMeta.put("LOP",{"LOP","fas fa-ban"," cell-lop-bg"});
+	statusMeta.put("LOP 1st",{"LOP 1st Half","fas fa-ban"," cell-lop-bg"});
+	statusMeta.put("LOP 2nd",{"LOP 2nd Half","fas fa-ban"," cell-lop-bg"});
+	statusMeta.put("W",{"Week Off","fas fa-mug-hot",""});
+	statusMeta.put("TODAY",{"TODAY_LIVE",""," cell-today-bg"});
+	statusMeta.put("TODAY_NP",{"TODAY_LIVE",""," cell-today-bg"});
+	// ============================================================
 	// SUMMARY VARIABLES
 	// ============================================================
 	rowPresent = 0.0;
@@ -577,6 +406,7 @@
 	rowLOP = 0.0;
 	rowPureAbsent = 0.0;
 	rowHoliday = 0;
+	todayKey = input.t;
 	%>
 <!DOCTYPE html>
 <html lang="en">
@@ -591,981 +421,128 @@
 	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
 	<style>
-		* {
-			margin: 0;
-			padding: 0;
-			box-sizing: border-box;
-			text-decoration: none;
-		}
-
-		html,
-		body {
-			height: 100%;
-			width: 100%;
-			margin: 0;
-			padding: 0;
-			overflow: hidden;
-			background: #f5f7fb;
-			text-decoration: none;
-		}
-			
-		body {
-			font-family: Inter, Arial, Helvetica, sans-serif;
-			color: #1f2937;
-			font-size: 10px;
-			text-decoration: none;
-		}
-
-		.zc-menu-nav-island-hz .zc-menu-list .zc-menu-item-has-sub .zc-menu-toggle {
-			text-decoration: none;
-			}
-			
-		.zc-app-name-square-v4 .zc-app-name-link {
-			text-decoration: none;
-			}
-			
-		.zc-popover.zc-user-account-popup .zc-user-action .zc-popover-list-cont .zc-popover-list a {
-			border-radius: 8px;
-			text-decoration: none;
-			}
-		
-		.zc-user-account-popup .zc-user-name+a {
-			display: block;
-			text-decoration: none;
-		}
-		.form-header {
-			display: none !important;
-		}
-		
-		.app-shell {
-			height: 100%;
-			overflow: auto;
-			padding: 18px 22px 16px;
-			text-decoration: none;
-		}
-
-		.calendar-btn button {
-			background: #5b21b6;
-			color: white;
-			border: 0;
-			border-radius: 6px;
-			padding: 7px 14px;
-			font-size: 11px;
-			font-family: Arial, sans-serif;
-			cursor: pointer;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-			font-size: 12px;
-		}
-		
-		.top-navbar {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: 16px;
-			margin-bottom: 16px;
-			flex-wrap: wrap;
-			text-decoration: none;
-		}
-
-		.brand-wrap {
-			display: flex;
-			align-items: center;
-			gap: 12px;
-			text-decoration: none;
-		}
-
-		.brand-cal-icon {
-			width: 35px;
-			height: 35px;
-			border-radius: 10px;
-			background: #f4f0ff;
-			border: 1px solid #e0d9ff;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			box-shadow: 0 8px 18px rgba(109,94,252,0.12);
-			overflow: hidden;
-			text-decoration: none;
-		}
-
-		.brand-cal-icon img {
-			width: 20px;
-			height: 20px;
-			object-fit: contain;
-		}
-
-		.brand-title {
-			font-size: 16px;
-			font-weight: 700;
-			color: #111827;
-			line-height: 1.15;
-		}
-
-		.brand-sub {
-			font-size: 10px;
-			color: #6b7280;
-			margin-top: 2px;
-		}
-
-		.nav-center {
-			display: flex;
-			align-items: center;
-			gap: 10px;
-			margin-left: auto;
-		}
-
-		.month-nav {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-		}
-
-		.month-nav-btn {
-			width: 30px;
-			height: 30px;
-			border: 1px solid #4c1d95;
-			background: #5b21b6;
-			border-radius: 8px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			color: #fff;
-			text-decoration: none;
-			box-shadow: 0 2px 6px rgba(91,33,182,0.35);
-			font-size: 10px;
-		}
-
-		.month-nav-btn:hover {
-			background: #4c1d95;
-			color: #fff;
-		}
-
-		.current-month {
-			min-width: 140px;
-			height: 30px;
-			padding: 0 14px;
-			border-radius: 8px;
-			border: 1px solid #4c1d95;
-			background: #5b21b6;
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			gap: 8px;
-			font-size: 11px;
-			font-weight: 600;
-			color: #fff;
-			box-shadow: 0 2px 6px rgba(91,33,182,0.35);
-		}
-		.all-employee-calendar {
-			min-width: 140px;
-			height: 30px;
-			padding: 0 14px;
-			border-radius: 8px;
-			border: 1px solid #4c1d95;
-			background: #5b21b6;
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			gap: 8px;
-			font-size: 11px;
-			font-weight: 600;
-			color: #fff;
-			box-shadow: 0 2px 6px rgba(91,33,182,0.35);
-		}
-
-		.today-btn {
-			height: 32px;
-			padding: 0 12px;
-			border-radius: 8px;
-			border: 1px solid #e5e7eb;
-			background: #f4f0ff;
-			color: #6d5efc;
-			text-decoration: none;
-			display: inline-flex;
-			align-items: center;
-			gap: 6px;
-			font-size: 10px;
-			font-weight: 600;
-		}
-
-		.today-btn:hover {
-			background: #5b21b6;
-			color: #fff;
-		}
-
-		.content-grid {
-			display: grid;
-			grid-template-columns: 260px 1fr;
-			grid-template-areas:
-				"profile calendar"
-				"leavesum calendar"
-				". legend";
-			gap: 8px;
-			align-items: start;
-		}
-
-		.profile-card {
-			grid-area: profile;
-			background: linear-gradient(180deg,#f4edff 0%,#ffffff 48%);
-			border: 1px solid #eee7ff;
-			border-radius: 16px;
-			padding: 22px 16px 18px;
-			text-align: center;
-			box-shadow: 0 8px 24px rgba(124,108,246,0.08);
-		}
-
-		.emp-avatar-lg {
-			width: 90px;
-			height: 90px;
-			border-radius: 50%;
-			object-fit: cover;
-			border: 4px solid #fff;
-			box-shadow: 0 8px 16px rgba(109,94,252,0.18);
-			background: #eef2ff;
-		}
-
-		.profile-name {
-			margin-top: 14px;
-			font-size: 14px;
-			font-weight: 700;
-			color: #111827;
-		}
-
-		.profile-role {
-			margin-top: 4px;
-			font-size: 12px;
-			font-weight: 600;
-			color: #7c6cf6;
-		}
-
-		.leave-summary-card {
-			grid-area: leavesum;
-			background: #fff;
-			border: 1px solid #edf0f5;
-			border-radius: 16px;
-			padding: 12px;
-			box-shadow: 0 8px 24px rgba(16,24,40,0.04);
-		}
-
-		.leave-summary-title {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			font-size: 10px;
-			font-weight: 700;
-			color: #111827;
-			margin-bottom: 12px;
-		}
-
-		.leave-sum-icon {
-			width: 16px;
-			height: 16px;
-			object-fit: contain;
-		}
-
-		.leave-grid {
-			display: grid;
-			grid-template-columns: 1fr 1fr;
-			gap: 8px;
-		}
-
-		.leave-tile {
-			border-radius: 12px;
-			padding: 10px;
-			min-height: 68px;
-		}
-
-		.leave-tile .ico {
-			width: 24px;
-			height: 24px;
-			border-radius: 6px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			font-size: 10px;
-			margin-bottom: 6px;
-		}
-
-		.leave-tile .lbl {
-			display: block;
-			font-size: 10px;
-			font-weight: 600;
-			color: #6b7280;
-		}
-
-		.leave-tile .val {
-			display: block;
-			margin-top: 2px;
-			font-size: 16px;
-			font-weight: 700;
-		}
-
-		.tile-present {
-			background: #f0fdf4;
-		}
-
-		.tile-present .ico {
-			background: #dcfce7;
-			color: #16a34a;
-		}
-
-		.tile-present .val {
-			color: #14532d;
-		}
-
-		.tile-taken {
-			background: #eef2ff;
-		}
-
-		.tile-taken .ico {
-			background: #e0e7ff;
-			color: #4f46e5;
-		}
-
-		.tile-taken .val {
-			color: #312e81;
-		}
-
-		.tile-sl {
-			background: #fff1f2;
-		}
-
-		.tile-sl .ico {
-			background: #ffe4e6;
-			color: #e11d48;
-		}
-
-		.tile-sl .val {
-			color: #9f1239;
-		}
-
-		.tile-cl {
-			background: #fff7ed;
-		}
-
-		.tile-cl .ico {
-			background: #ffedd5;
-			color: #ea580c;
-		}
-
-		.tile-cl .val {
-			color: #9a3412;
-		}
-
-		.tile-lop {
-			background: #fef2f2;
-		}
-
-		.tile-lop .ico {
-			background: #fee2e2;
-			color: #dc2626;
-		}
-
-		.tile-lop .val {
-			color: #991b1b;
-		}
-
-		.tile-half {
-			background: #fffbeb;
-		}
-
-		.tile-half .ico {
-			background: #fef3c7;
-			color: #d97706;
-		}
-
-		.tile-half .val {
-			color: #92400e;
-		}
-
-		.tile-holiday-wide {
-			margin-top: 10px;
-			display: flex;
-			align-items: center;
-			gap: 10px;
-			border-radius: 12px;
-			padding: 10px 12px;
-			background: #fdf2f8;
-			min-height: 54px;
-		}
-
-		.tile-holiday-wide .ico {
-			width: 30px;
-			height: 30px;
-			border-radius: 8px;
-			background: #fce7f3;
-			color: #db2777;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			font-size: 12px;
-		}
-
-		.tile-holiday-wide .lbl {
-			display: block;
-			font-size: 10px;
-			font-weight: 600;
-			color: #6b7280;
-		}
-
-		.tile-holiday-wide .val {
-			display: block;
-			margin-top: 1px;
-			font-size: 16px;
-			font-weight: 700;
-			color: #831843;
-		}
-
-		.calendar-wrap {
-			grid-area: calendar;
-			background: #fff;
-			border: 1px solid #edf0f5;
-			border-radius: 14px;
-			box-shadow: 0 8px 24px rgba(16,24,40,0.04);
-			overflow: hidden;
-		}
-
-		.calendar-weekday-header {
-			display: grid;
-			grid-template-columns: repeat(7, 1fr);
-			border-bottom: 1px solid #edf0f4;
-			background: #fff;
-		}
-
-		.calendar-weekday-header div {
-			text-align: center;
-			font-size: 12px;
-			font-weight: 600;
-			color: #6b7280;
-			padding: 10px 4px;
-		}
-
-		.calendar-week-row {
-			display: grid;
-			grid-template-columns: repeat(7, 1fr);
-		}
-
-		.calendar-week-row + .calendar-week-row {
-			border-top: 1px solid #edf0f4;
-		}
-
-		.calendar-day-cell {
-			position: relative;
-			min-height: 84px;
-			padding: 8px;
-			background: #fff;
-			display: flex;
-			flex-direction: column;
-			align-items: stretch;
-			border-right: 1px solid #edf0f4;
-		}
-		
-		.present-crown {
-			position: absolute;
-			right: 14px;
-			bottom: 6px;
-			width: 21px;
-			height: 19px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			color: #ffe900;
-			font-size: 10px;
-
-			/* Very thin border */
-			-webkit-text-stroke: 0.7px #999;		
-			}
-		
-		
-		.p {
-			margin-top: 40px;
-			margin-bottom: 1rem;
-			color: black;
-		}
-
-		.calendar-day-cell:last-child {
-			border-right: none;
-		}
-
-		.calendar-day-cell.today-cell {
-			box-shadow: inset 0 0 0 2px #6d5efc;
-			z-index: 10;
-			position: relative;
-		}
-
-		.calendar-day-cell.empty-cell {
-			background: #fff;
-		}
-
-		.calendar-day-cell.empty-cell .day-number {
-			color: #d3d8e0;
-			font-weight: 500;
-		}
-
-		.cell-present-bg {
-			background-color: #f0fdf4 !important;
-		}
-
-		.cell-sh-bg {
-			background-color: #fffbeb !important;
-		}
-
-		.cell-sl-bg {
-			background-color: #fff1f2 !important;
-		}
-
-		.cell-cl-bg {
-			background-color: #fff7ed !important;
-		}
-
-		.cell-lop-bg {
-			background-color: #fef2f2 !important;
-		}
-
-		.cell-absent-bg {
-			background-color: #fff1f2 !important;
-		}
-
-		.cell-holiday-bg {
-			background-color: #fdf2f8 !important;
-		}
-
-		.day-number {
-			font-size: 11px;
-			font-weight: 500;
-			color: #374151;
-			line-height: 1;
-			align-self: flex-start;
-		}
-
-		.day-number.sun-num {
-			color: #f43f5e;
-		}
-
-		.day-number.sat-num {
-			color: #6d5efc;
-		}
-
-		.today-cell .day-number {
-			color: #4f46e5;
-			font-weight: 800;
-		}
-
-		.cell-status {
-			flex: 1;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-		}
-
-		.hd-link {
-			text-decoration: none !important;
-			display: inline-block;
-			cursor: pointer;
-			text-align: center;
-		}
-
-		.status-badge {
-			display: inline-flex;
-			align-items: center;
-			gap: 4px;
-			padding: 3px 7px;
-			border-radius: 5px;
-			font-size: 10px;
-			font-weight: 600;
-			line-height: 1.2;
-			white-space: nowrap;
-		}
-
-		.status-badge i {
-			font-size: 16px;
-		}
-
-		.status-fd {
-			background: #dcfce7;
-			color: #16a34a;
-		}
-
-		.status-sh {
-			background: #fff3df;
-			color: #d97706;
-		}
-
-		.status-absent {
-			background: #fee2e2;
-			color: #dc2626;
-		}
-
-		.status-holiday {
-			background: #fce7f3;
-			color: #be185d;
-		}
-
-		.status-leave-sick,
-		.status-sl1,
-		.status-sl2 {
-			background: #ffe6ea;
-			color: #e11d48;
-		}
-
-		.status-leave-casual,
-		.status-cl1,
-		.status-cl2 {
-			background: #ffedf4;
-			color: #db2777;
-		}
-
-		.status-lop,
-		.status-lop1,
-		.status-lop2 {
-			background: #fecaca;
-			color: #991b1b;
-		}
-
-		.status-w {
-			background: #f1f5f9;
-			color: #4b5563;
-		}
-
-		.legend-row {
-			grid-area: legend;
-			display: flex;
-			align-items: center;
-			gap: 14px;
-			flex-wrap: wrap;
-			padding: 4px 0 0;
-			color: #6b7280;
-			font-size: 10px;
-			margin-top: -28px;
-		}
-
-		.legend-item {
-			display: inline-flex;
-			align-items: center;
-			gap: 4px;
-			font-size: 10px;
-			font-weight: 600;
-		}
-
-		.legend-dot {
-			width: 8px;
-			height: 8px;
-			border-radius: 50%;
-			display: inline-block;
-		}
-
-		.dot-p {
-			background: #22c55e;
-		}
-
-		.dot-h {
-			background: #f59e0b;
-		}
-
-		.dot-cl {
-			background: #f43f5e;
-		}
-
-		.dot-sl {
-			background: #e11d48;
-		}
-
-		.dot-lop {
-			background: #dc2626;
-		}
-
-		.dot-a {
-			background: #fb7185;
-		}
-
-		.dot-hol {
-			background: #ec4899;
-		}
-
-		.no-employee-msg {
-			padding: 40px 20px;
-			text-align: center;
-			color: #a31d1d;
-			font-size: 11px;
-			font-weight: 600;
-		}
-
-		.desp {
-			display: inline-flex;
-			align-items: center;
-			padding: 3px 7px;
-			border-radius: 5px;
-			font-size: 10px;
-			font-weight: 600;
-			line-height: 1.2;
-			white-space: nowrap;
-			color: #f59e0b;
-		}
-
-		.sh-toggle {
-			position: absolute;
-			opacity: 0;
-			width: 0;
-			height: 0;
-			margin: 0;
-			pointer-events: none;
-		}
-
-		.sh-modal-overlay {
-			display: none;
-			position: fixed;
-			inset: 0;
-			background: rgba(17,24,39,0.55);
-			z-index: 9999;
-			align-items: center;
-			justify-content: center;
-			padding: 20px;
-		}
-
-		.sh-toggle:checked ~ .sh-modal-overlay {
-			display: flex;
-		}
-
-		.sh-backdrop {
-			position: absolute;
-			inset: 0;
-			cursor: pointer;
-			margin: 0;
-		}
-
-		.sh-modal-box {
-			position: relative;
-			z-index: 1;
-			background: #fff;
-			width: 500px;
-			max-width: 95vw;
-			border-radius: 16px;
-			box-shadow: 0 24px 60px rgba(16,24,40,0.28);
-			overflow: hidden;
-		}
-
-		.sh-modal-header {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: 10px;
-			padding: 12px 16px;
-			background: #1b355a;
-			color: #fff;
-		}
-
-		.sh-modal-title {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			font-size: 16px;
-			font-weight: 700;
-		}
-
-		.sh-modal-sub {
-			font-size: 10px;
-			font-weight: 500;
-			opacity: 0.85;
-			margin-top: 3px;
-		}
-
-		.sh-modal-close {
-			width: 28px;
-			height: 28px;
-			border-radius: 8px;
-			background: rgba(255,255,255,0.18);
-			color: #fff;
-			font-size: 12px;
-			cursor: pointer;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			flex-shrink: 0;
-		}
-
-		.sh-modal-body {
-			background: #f8f9fc;
-			max-height: 100vh;
-			width: 500px;
-			overflow: auto;
-		}
-
-		.sh-modal-body iframe {
-			width: 100%;
-			height: 600px;
-			border: 0;
-			display: block;
-		}
-		
-		/* New CSS for Punch Preview Table */
-		.punch-preview {
-			background: #fff;
-			border-bottom: 2px solid #ede9fe;
-			padding: 10px 14px 12px;
-		}
-
-		.punch-preview-head {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			font-size: 12px;
-			font-weight: 700;
-			color: #4c1d95;
-			margin-bottom: 8px;
-		}
-
-		.punch-preview-hrs {
-			margin-left: auto;
-			background: #f4f0ff;
-			color: #5b21b6;
-			padding: 2px 8px;
-			border-radius: 6px;
-			font-size: 11px;
-		}
-
-		.punch-preview-table {
-			max-height: 240px;
-			overflow: auto;
-			border: 1px solid #e5e7eb;
-			border-radius: 8px;
-		}
-
-		.punch-preview-table table {
-			width: 100% !important;
-			border-collapse: collapse;
-			font-size: 11px;
-		}
-
-		.punch-preview-table th,
-		.punch-preview-table td {
-			border: 1px solid #e5e7eb !important;
-			padding: 5px 8px !important;
-			white-space: nowrap;
-		}
-
-		.punch-preview-table th,
-		.punch-preview-table tr:first-child td {
-			background: #f8fafc;
-			font-weight: 600;
-			position: sticky;
-			top: 0;
-		}
-
-		/* ============ TODAY CELL - NEW CLEAN DESIGN ============ */
-		.today-working-badge {
-			position: relative;
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			width: 30px;
-			height: 30px;
-			border-radius: 50%;
-			background: #eef2ff;
-			color: #4338ca;
-			box-shadow: 0 2px 4px rgba(67,56,202,0.15);
-		}
-
-		.today-working-badge i {
-			font-size: 14px;
-		}
-
-		.working-pulse-dot {
-			position: absolute;
-			top: -2px;
-			right: -2px;
-			width: 9px;
-			height: 9px;
-			border-radius: 50%;
-			background: #22c55e;
-			border: 2px solid #fff;
-			animation: workingPulse 1.5s infinite;
-		}
-
-		@keyframes workingPulse {
-			0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
-			70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
-			100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
-		}
-
-		.today-regularize-link {
-			display: inline-block;
-			margin-top: 5px;
-			padding: 3px 8px;
-			border-radius: 6px;
-			background: #5b21b6;
-			color: #fff !important;
-			font-size: 9px;
-			font-weight: 600;
-			cursor: pointer;
-			text-decoration: none;
-		}
-
-		.today-regularize-link:hover {
-			background: #4c1d95;
-		}
-
-		/* Remove old today styling that you don't want */
-		.calendar-day-cell.today-cell {
-			box-shadow: inset 0 0 0 2px #6d5efc;
-		}
-
-		.cell-today-bg {
-			background-color: #f5f3ff !important;
-		}
-		
-		body {
-			animation: pageEnter 0.7s ease-out;
-		}
-
-		@keyframes pageEnter {
-			from {
-				opacity: 0;
-				transform: translateY(15px);
-			}
-			to {
-				opacity: 1;
-				transform: translateY(0);
-			}
-		}
-
-		@keyframes todayPulse {
-			0%, 100% { box-shadow: 0 0 0 0 rgba(91,33,182,0.45); }
-			50%      { box-shadow: 0 0 0 5px rgba(91,33,182,0); }
-		}
-
-		@media print {
-			.desp-today { animation: none; box-shadow: none; }
-		}
-		@media (max-width: 1100px) {
-			.content-grid {
-				grid-template-columns: 1fr;
-				grid-template-areas:
-					"profile"
-					"calendar"
-					"leavesum"
-					"legend";
-			}
-		}
-
+		* { margin: 0; padding: 0; box-sizing: border-box; text-decoration: none; }
+		html, body { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; background: #f5f7fb; text-decoration: none; }
+		body { font-family: Inter, Arial, Helvetica, sans-serif; color: #1f2937; font-size: 10px; text-decoration: none; }
+		.zc-menu-nav-island-hz .zc-menu-list .zc-menu-item-has-sub .zc-menu-toggle { text-decoration: none; }
+		.zc-app-name-square-v4 .zc-app-name-link { text-decoration: none; }
+		.zc-popover.zc-user-account-popup .zc-user-action .zc-popover-list-cont .zc-popover-list a { border-radius: 8px; text-decoration: none; }
+		.zc-user-account-popup .zc-user-name+a { display: block; text-decoration: none; }
+		.form-header { display: none !important; }
+		.app-shell { height: 100%; overflow: auto; padding: 18px 22px 16px; text-decoration: none; }
+		.calendar-btn button { background: #5b21b6; color: white; border: 0; border-radius: 6px; padding: 7px 14px; font-family: Arial, sans-serif; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-size: 12px; }
+		.top-navbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; text-decoration: none; }
+		.brand-wrap { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+		.brand-cal-icon { width: 35px; height: 35px; border-radius: 10px; background: #f4f0ff; border: 1px solid #e0d9ff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(109,94,252,0.12); overflow: hidden; text-decoration: none; }
+		.brand-cal-icon img { width: 20px; height: 20px; object-fit: contain; }
+		.brand-title { font-size: 16px; font-weight: 700; color: #111827; line-height: 1.15; }
+		.brand-sub { font-size: 10px; color: #6b7280; margin-top: 2px; }
+		.nav-center { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+		.month-nav { display: flex; align-items: center; gap: 8px; }
+		.month-nav-btn { width: 30px; height: 30px; border: 1px solid #4c1d95; background: #5b21b6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; text-decoration: none; box-shadow: 0 2px 6px rgba(91,33,182,0.35); font-size: 10px; }
+		.month-nav-btn:hover { background: #4c1d95; color: #fff; }
+		.current-month, .all-employee-calendar { min-width: 140px; height: 30px; padding: 0 14px; border-radius: 8px; border: 1px solid #4c1d95; background: #5b21b6; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 11px; font-weight: 600; color: #fff; box-shadow: 0 2px 6px rgba(91,33,182,0.35); }
+		.today-btn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #e5e7eb; background: #f4f0ff; color: #6d5efc; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; }
+		.today-btn:hover { background: #5b21b6; color: #fff; }
+		.content-grid { display: grid; grid-template-columns: 260px 1fr; grid-template-areas: "profile calendar" "leavesum calendar" ". legend"; gap: 8px; align-items: start; }
+		.profile-card { grid-area: profile; background: linear-gradient(180deg,#f4edff 0%,#ffffff 48%); border: 1px solid #eee7ff; border-radius: 16px; padding: 22px 16px 18px; text-align: center; box-shadow: 0 8px 24px rgba(124,108,246,0.08); }
+		.emp-avatar-lg { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 4px solid #fff; box-shadow: 0 8px 16px rgba(109,94,252,0.18); background: #eef2ff; }
+		.profile-name { margin-top: 14px; font-size: 14px; font-weight: 700; color: #111827; }
+		.profile-role { margin-top: 4px; font-size: 12px; font-weight: 600; color: #7c6cf6; }
+		.leave-summary-card { grid-area: leavesum; background: #fff; border: 1px solid #edf0f5; border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px rgba(16,24,40,0.04); }
+		.leave-summary-title { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 700; color: #111827; margin-bottom: 12px; }
+		.leave-sum-icon { width: 16px; height: 16px; object-fit: contain; }
+		.leave-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+		.leave-tile { border-radius: 12px; padding: 10px; min-height: 68px; }
+		.leave-tile .ico { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; margin-bottom: 6px; }
+		.leave-tile .lbl { display: block; font-size: 10px; font-weight: 600; color: #6b7280; }
+		.leave-tile .val { display: block; margin-top: 2px; font-size: 16px; font-weight: 700; }
+		.tile-present { background: #f0fdf4; } .tile-present .ico { background: #dcfce7; color: #16a34a; } .tile-present .val { color: #14532d; }
+		.tile-taken { background: #eef2ff; } .tile-taken .ico { background: #e0e7ff; color: #4f46e5; } .tile-taken .val { color: #312e81; }
+		.tile-sl { background: #fff1f2; } .tile-sl .ico { background: #ffe4e6; color: #e11d48; } .tile-sl .val { color: #9f1239; }
+		.tile-cl { background: #fff7ed; } .tile-cl .ico { background: #ffedd5; color: #ea580c; } .tile-cl .val { color: #9a3412; }
+		.tile-lop { background: #fef2f2; } .tile-lop .ico { background: #fee2e2; color: #dc2626; } .tile-lop .val { color: #991b1b; }
+		.tile-half { background: #fffbeb; } .tile-half .ico { background: #fef3c7; color: #d97706; } .tile-half .val { color: #92400e; }
+		.tile-holiday-wide { margin-top: 10px; display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 10px 12px; background: #fdf2f8; min-height: 54px; }
+		.tile-holiday-wide .ico { width: 30px; height: 30px; border-radius: 8px; background: #fce7f3; color: #db2777; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+		.tile-holiday-wide .lbl { display: block; font-size: 10px; font-weight: 600; color: #6b7280; }
+		.tile-holiday-wide .val { display: block; margin-top: 1px; font-size: 16px; font-weight: 700; color: #831843; }
+		.calendar-wrap { grid-area: calendar; background: #fff; border: 1px solid #edf0f5; border-radius: 14px; box-shadow: 0 8px 24px rgba(16,24,40,0.04); overflow: hidden; }
+		.calendar-weekday-header { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid #edf0f4; background: #fff; }
+		.calendar-weekday-header div { text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; padding: 10px 4px; }
+		.calendar-week-row { display: grid; grid-template-columns: repeat(7, 1fr); }
+		.calendar-week-row + .calendar-week-row { border-top: 1px solid #edf0f4; }
+		.calendar-day-cell { position: relative; min-height: 84px; padding: 8px; background: #fff; display: flex; flex-direction: column; align-items: stretch; border-right: 1px solid #edf0f4; }
+		.present-crown { position: absolute; right: 14px; bottom: 6px; width: 21px; height: 19px; display: flex; align-items: center; justify-content: center; color: #ffe900; font-size: 10px; -webkit-text-stroke: 0.7px #999; }
+		.p { margin-top: 40px; margin-bottom: 1rem; color: black; }
+		.calendar-day-cell:last-child { border-right: none; }
+		.calendar-day-cell.today-cell { box-shadow: inset 0 0 0 2px #6d5efc; z-index: 10; position: relative; }
+		.calendar-day-cell.empty-cell { background: #fff; }
+		.calendar-day-cell.empty-cell .day-number { color: #d3d8e0; font-weight: 500; }
+		.cell-present-bg { background-color: #f0fdf4 !important; }
+		.cell-sh-bg { background-color: #fffbeb !important; }
+		.cell-sl-bg { background-color: #fff1f2 !important; }
+		.cell-cl-bg { background-color: #fff7ed !important; }
+		.cell-lop-bg { background-color: #fef2f2 !important; }
+		.cell-absent-bg { background-color: #fff1f2 !important; }
+		.cell-holiday-bg { background-color: #fdf2f8 !important; }
+		.day-number { font-size: 11px; font-weight: 500; color: #374151; line-height: 1; align-self: flex-start; }
+		.day-number.sun-num { color: #f43f5e; }
+		.day-number.sat-num { color: #6d5efc; }
+		.today-cell .day-number { color: #4f46e5; font-weight: 800; }
+		.cell-status { flex: 1; display: flex; align-items: center; justify-content: center; }
+		.hd-link { text-decoration: none !important; display: inline-block; cursor: pointer; text-align: center; }
+		.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 5px; font-size: 10px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+		.status-badge i { font-size: 16px; }
+		.status-fd { background: #dcfce7; color: #16a34a; }
+		.status-sh { background: #fff3df; color: #d97706; }
+		.status-absent { background: #fee2e2; color: #dc2626; }
+		.status-holiday { background: #fce7f3; color: #be185d; }
+		.status-leave-sick, .status-sl1, .status-sl2 { background: #ffe6ea; color: #e11d48; }
+		.status-leave-casual, .status-cl1, .status-cl2 { background: #ffedf4; color: #db2777; }
+		.status-lop, .status-lop1, .status-lop2 { background: #fecaca; color: #991b1b; }
+		.status-w { background: #f1f5f9; color: #4b5563; }
+		.legend-row { grid-area: legend; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 4px 0 0; color: #6b7280; font-size: 10px; margin-top: -28px; }
+		.legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; }
+		.legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+		.dot-p { background: #22c55e; } .dot-h { background: #f59e0b; } .dot-cl { background: #f43f5e; } .dot-sl { background: #e11d48; } .dot-lop { background: #dc2626; } .dot-a { background: #fb7185; } .dot-hol { background: #ec4899; }
+		.no-employee-msg { padding: 40px 20px; text-align: center; color: #a31d1d; font-size: 11px; font-weight: 600; }
+		.desp { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 5px; font-size: 10px; font-weight: 600; line-height: 1.2; white-space: nowrap; color: #f59e0b; }
+		.sh-toggle { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; pointer-events: none; }
+		.sh-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(17,24,39,0.55); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+		.sh-toggle:checked ~ .sh-modal-overlay { display: flex; }
+		.sh-backdrop { position: absolute; inset: 0; cursor: pointer; margin: 0; }
+		.sh-modal-box { position: relative; z-index: 1; background: #fff; width: 500px; max-width: 95vw; border-radius: 16px; box-shadow: 0 24px 60px rgba(16,24,40,0.28); overflow: hidden; }
+		.sh-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; background: #1b355a; color: #fff; }
+		.sh-modal-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+		.sh-modal-sub { font-size: 10px; font-weight: 500; opacity: 0.85; margin-top: 3px; }
+		.sh-modal-close { width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+		.sh-modal-body { background: #f8f9fc; max-height: 100vh; width: 500px; overflow: auto; }
+		.sh-modal-body iframe { width: 100%; height: 600px; border: 0; display: block; }
+		.punch-preview { background: #fff; border-bottom: 2px solid #ede9fe; padding: 10px 14px 12px; }
+		.punch-preview-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #4c1d95; margin-bottom: 8px; }
+		.punch-preview-hrs { margin-left: auto; background: #f4f0ff; color: #5b21b6; padding: 2px 8px; border-radius: 6px; font-size: 11px; }
+		.punch-preview-table { max-height: 240px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+		.punch-preview-table table { width: 100% !important; border-collapse: collapse; font-size: 11px; }
+		.punch-preview-table th, .punch-preview-table td { border: 1px solid #e5e7eb !important; padding: 5px 8px !important; white-space: nowrap; }
+		.punch-preview-table th, .punch-preview-table tr:first-child td { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+		.today-working-badge { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #eef2ff; color: #4338ca; box-shadow: 0 2px 4px rgba(67,56,202,0.15); }
+		.today-working-badge i { font-size: 14px; }
+		.working-pulse-dot { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: #22c55e; border: 2px solid #fff; animation: workingPulse 1.5s infinite; }
+		@keyframes workingPulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); } 70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+		.today-regularize-link { display: inline-block; margin-top: 5px; padding: 3px 8px; border-radius: 6px; background: #5b21b6; color: #fff !important; font-size: 9px; font-weight: 600; cursor: pointer; text-decoration: none; }
+		.today-regularize-link:hover { background: #4c1d95; }
+		.cell-today-bg { background-color: #f5f3ff !important; }
+		body { animation: pageEnter 0.7s ease-out; }
+		@keyframes pageEnter { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+		@keyframes todayPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(91,33,182,0.45); } 50% { box-shadow: 0 0 0 5px rgba(91,33,182,0); } }
+		@media print { .desp-today { animation: none; box-shadow: none; } }
+		@media (max-width: 1100px) { .content-grid { grid-template-columns: 1fr; grid-template-areas: "profile" "calendar" "leavesum" "legend"; } }
 		@media (max-width: 768px) {
-			.calendar-day-cell {
-				min-height: 72px;
-				padding: 6px;
-			}
-
-			.nav-center {
-				margin-left: 0;
-				width: 100%;
-				justify-content: space-between;
-			}
-
-			.sh-modal-box {
-				max-width: 100%;
-			}
-
-			.sh-modal-body iframe {
-				height: 70vh;
-			}
+			.calendar-day-cell { min-height: 72px; padding: 6px; }
+			.nav-center { margin-left: 0; width: 100%; justify-content: space-between; }
+			.sh-modal-box { max-width: 100%; }
+			.sh-modal-body iframe { height: 70vh; }
 		}
 	</style>
 </head>
@@ -1578,7 +555,6 @@
 			<div class="brand-cal-icon">
 				<img src="https://cdn-icons-png.flaticon.com/128/833/833593.png" alt="Calendar">
 			</div>
-
 			<div>
 				<div class="brand-title">Employee Calendar</div>
 				<div class="brand-sub">Monthly Attendance & Leave Overview</div>
@@ -1587,17 +563,15 @@
 
 		<div class="nav-center">
 <%
-	if(emp.Is_Manager == "True")
+	if(isManagerFlag)
 	{
 		%>
 <span class="current-month">
-				<i class="fas fa-users"></i>  				
-				<a href="https://zenattendance.zohocreatorportal.in/#Attendance_Page1"
-				   target="_blank"
-				   class="calendar-btn">
-				   <button><b>All Employee Calendar</b></button>
+				<i class="fas fa-users"></i>
+				<a href="https://creatorapp.zoho.in/zentegraindia/attendance-payroll-management/#Page:Test_Page" target="_blank" class="calendar-btn">
+					<button><b>All Employee Calendar</b></button>
 				</a>
-				</span>
+			</span>
 <%
 	}
 	%>
@@ -1605,17 +579,14 @@
 				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=false" class="month-nav-btn">
 					<i class="fas fa-chevron-left"></i>
 				</a>
-
 				<span class="current-month">
 					<i class="far fa-calendar"></i>
 					<%=baseDate.toString("MMMM yyyy")%>
 				</span>
-
 				<a href="#Page:emp_attendance?d=<%=baseDate.toString("dd-MMM-yyyy")%>&Next_btn=true" class="month-nav-btn">
 					<i class="fas fa-chevron-right"></i>
 				</a>
 			</div>
-
 			<a href="#Page:emp_attendance?d=<%=zoho.currentdate.toString("dd-MMM-yyyy")%>" class="today-btn">
 				<i class="far fa-calendar"></i>
 				Today
@@ -1637,28 +608,15 @@
 <div class="content-grid">
 
 			<aside class="profile-card">
-				<img src="<%=photoSource%>"
-				     class="emp-avatar-lg"
-				     alt="<%=ifnull(targetEmpName,"Employee")%>"
+				<img src="<%=photoSource%>" class="emp-avatar-lg" alt="<%=ifnull(targetEmpName,"Employee")%>"
 				     onerror="if(!this.dataset.f){this.dataset.f=1;this.src='<%=fallbackAvatar%>';}else{this.onerror=null;this.src='<%=genericAvatar%>';}">
-				
-				<div class="profile-name">
-					<%=if(targetEmpName == "","No Employee Selected",targetEmpName)%>
-				</div>
-				<div class="profile-role">
-					<%=targetemployeerole%>
-				</div>
+				<div class="profile-name"><%=if(targetEmpName == "","No Employee Selected",targetEmpName)%></div>
+				<div class="profile-role"><%=targetemployeerole%></div>
 			</aside>
 
 			<div class="calendar-wrap">
 				<div class="calendar-weekday-header">
-					<div>Sun</div>
-					<div>Mon</div>
-					<div>Tue</div>
-					<div>Wed</div>
-					<div>Thu</div>
-					<div>Fri</div>
-					<div>Sat</div>
+					<div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
 				</div>
 <%
 		for each  weekNum in weekIndexList
@@ -1668,11 +626,10 @@
 <%
 			for each  dow in dowIndexList
 			{
-				cellIndex = weekNum * 7 + dow;
-				cellDate = gridStart.addDay(cellIndex);
-				inMonth = cellDate.toStartOfMonth() == baseDate;
+				cellDate = gridStart.addDay(weekNum * 7 + dow);
+				inMonth = cellDate >= monthStart && cellDate <= monthEnd;
 				isWeekendCol = dow == 0 || dow == 6;
-				isToday = cellDate.toString("dd-MM-yyyy") == input.t;
+				isToday = cellDate.toString("dd-MM-yyyy") == todayKey;
 				cellClasses = "calendar-day-cell";
 				if(isToday && inMonth)
 				{
@@ -1697,30 +654,25 @@
 				descClass = "";
 				finalTimeDisplay = "";
 				liveTimeDisplay = "";
-				punchTableFull = "";
 				statusWrapClass = "cell-status";
+				dayNumClass = "day-number";
 				if(inMonth)
 				{
-					isFuture = cellDate > zoho.currentdate;
-					dateKey = cellDate.toString("yyyy-MM-dd");
-					holidayName = "";
-					isHoliday = false;
-					holidayIndex = 0;
-					for each  holidayDateKey in holidayDates
+					if(dow == 0)
 					{
-						if(!isHoliday && holidayDateKey == dateKey)
-						{
-							isHoliday = true;
-							holidayName = holidayNames.get(holidayIndex);
-						}
-						holidayIndex = holidayIndex + 1;
+						dayNumClass = "day-number sun-num";
 					}
-					if(isHoliday)
+					else if(dow == 6)
+					{
+						dayNumClass = "day-number sat-num";
+					}
+					dateKey = cellDate.toString("yyyy-MM-dd");
+					holidayName = holidayMap.get(dateKey);
+					if(holidayName != null)
 					{
 						displayStatus = "H";
 						badgeClass = "status-holiday";
 						titleText = holidayName;
-						cellClasses = cellClasses + " cell-holiday-bg";
 						rowHoliday = rowHoliday + 1;
 					}
 					else if(isWeekendCol)
@@ -1729,7 +681,7 @@
 						badgeClass = "status-w";
 						titleText = "Weekend";
 					}
-					else if(isFuture)
+					else if(cellDate > zoho.currentdate)
 					{
 						showDash = true;
 					}
@@ -1750,30 +702,26 @@
 						{
 							leaveType = ifnull(leaveFullInfo.get("leave_type"),"").toString();
 						}
-						else if(isSplitLeave)
-						{
-							leaveType = "";
-						}
-						else if(hasFHLeave)
+						else if(!isSplitLeave && hasFHLeave)
 						{
 							leaveType = ifnull(leaveFHInfo.get("leave_type"),"").toString();
 							isHalfDay = true;
 							isFH = true;
 						}
-						else if(hasSHLeave)
+						else if(!isSplitLeave && hasSHLeave)
 						{
 							leaveType = ifnull(leaveSHInfo.get("leave_type"),"").toString();
 							isHalfDay = true;
-							isFH = false;
 						}
-						finalTimeValue = attendanceTimeMap.get(dateKey);
-						hasPunch = finalTimeValue != null;
-						workedMinutes = 0;
-						finalTimeDisplay = "";
+						workedMinutes = attendanceMinutesMap.get(dateKey);
+						hasPunch = workedMinutes != null;
 						if(hasPunch)
 						{
-							workedMinutes = attendanceMinutesMap.get(dateKey);
 							finalTimeDisplay = ifnull(attendanceDisplayMap.get(dateKey),"").toString();
+						}
+						else
+						{
+							workedMinutes = 0;
 						}
 						if(hasPunch && workedMinutes >= fullDayMinutes)
 						{
@@ -1783,9 +731,7 @@
 							rowPresent = rowPresent + 1;
 							if(isToday)
 							{
-								dateFormatted = cellDate.toString("dd-MMM-yyyy");
-								baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
-								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
+								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + cellDate.toString("dd-MMM-yyyy") + "&zc_Header=false";
 								displayStatus = "TODAY";
 								badgeClass = "status-today";
 								titleText = "Present (Today) | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
@@ -1859,28 +805,27 @@
 									rowAbsent = rowAbsent + 1.0;
 									rowPureAbsent = rowPureAbsent + 0.5;
 								}
-								leaveIncrement = 0.5;
 								if(leaveType == "SL")
 								{
 									displayStatus = if(isFH,"SL 1st","SL 2nd");
 									badgeClass = if(isFH,"status-sl1","status-sl2");
-									rowSL = rowSL + leaveIncrement;
+									rowSL = rowSL + 0.5;
 								}
 								else if(leaveType == "LOP")
 								{
 									displayStatus = if(isFH,"LOP 1st","LOP 2nd");
 									badgeClass = if(isFH,"status-lop1","status-lop2");
-									rowLOP = rowLOP + leaveIncrement;
+									rowLOP = rowLOP + 0.5;
 								}
 								else
 								{
 									displayStatus = if(isFH,"CL 1st","CL 2nd");
 									badgeClass = if(isFH,"status-cl1","status-cl2");
-									rowCL = rowCL + leaveIncrement;
+									rowCL = rowCL + 0.5;
 								}
 								titleText = displayStatus + " + Worked | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							}
-							else if(hasLeave && !isHalfDay)
+							else if(hasLeave)
 							{
 								rowAbsent = rowAbsent + 1.0;
 								if(leaveType == "SL")
@@ -1903,84 +848,47 @@
 								}
 								titleText = displayStatus + " Full Day Leave | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes;
 							}
-							else
+							else if(isToday)
 							{
-								if(isToday)
+								liveWorkedMinutes = workedMinutes;
+								todayCheckIn = attendanceCheckInMap.get(dateKey);
+								if(todayCheckIn != null && todayCheckIn.toString() != "")
 								{
-									// ---- TODAY: compute LIVE worked hours ----
-									liveWorkedMinutes = workedMinutes;
-									// If you have check-in time, compute live from check-in to now
-									todayCheckIn = attendanceCheckInMap.get(dateKey);
-									if(todayCheckIn != null && todayCheckIn.toString() != "")
+									try 
 									{
-										try 
-										{
-											ciTime = todayCheckIn.toString().toTime("HH:mm");
-											ciMinutes = ciTime.getHour() * 60 + ciTime.getMinutes();
-											nowMinutes = liveHour * 60 + liveMin;
-											liveWorkedMinutes = nowMinutes - ciMinutes;
-											if(liveWorkedMinutes < 0)
-											{
-												liveWorkedMinutes = workedMinutes;
-											}
-										}										catch (eLive)
+										ciTime = todayCheckIn.toString().toTime("HH:mm");
+										liveWorkedMinutes = liveHour * 60 + liveMin - (ciTime.getHour() * 60 + ciTime.getMinutes());
+										if(liveWorkedMinutes < 0)
 										{
 											liveWorkedMinutes = workedMinutes;
 										}
+									}									catch (eLive)
+									{
+										liveWorkedMinutes = workedMinutes;
 									}
-									liveH = (liveWorkedMinutes / 60).toNumber();
-									liveM = liveWorkedMinutes % 60;
-									liveTimeDisplay = liveH + "h " + liveM + "m";
-									dateFormatted = cellDate.toString("dd-MMM-yyyy");
-									baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
-									hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
-									displayStatus = "TODAY";
-									titleText = "Today | Worked: " + liveTimeDisplay + " | Click to regularize";
+								}
+								liveTimeDisplay = (liveWorkedMinutes / 60).toNumber() + "h " + liveWorkedMinutes % 60 + "m";
+								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + cellDate.toString("dd-MMM-yyyy") + "&zc_Header=false";
+								displayStatus = "TODAY";
+								titleText = "Today | Worked: " + liveTimeDisplay + " | Click to regularize";
+							}
+							else
+							{
+								if(workedMinutes >= halfDayMinutes)
+								{
+									rowPresent = rowPresent + 0.5;
+									rowAbsent = rowAbsent + 0.5;
+									rowHalfDay = rowHalfDay + 1;
 								}
 								else
 								{
-									if(workedMinutes >= halfDayMinutes)
-									{
-										rowPresent = rowPresent + 0.5;
-										rowAbsent = rowAbsent + 0.5;
-										rowHalfDay = rowHalfDay + 1;
-									}
-									else
-									{
-										rowAbsent = rowAbsent + 1.0;
-										rowPureAbsent = rowPureAbsent + 1.0;
-									}
-									// ============================================================
-									// ATTENDANCE REGULARIZATION ONLY
-									// Updated: removed preview HTML and removed plain param
-									// ============================================================
-									dateFormatted = cellDate.toString("dd-MMM-yyyy");
-									empLongID = ifnull(targetEmpID,"0").toLong();
-									// 1. Generate Full HTML Table (for Popup Preview)
-									// 									punchTableFull = "";
-									// 									try 
-									// 									{
-									// 										punchTableFull = thisapp.Timesheets.test_employee_calendar_htmlll(empLongID,cellDate);
-									// 									}
-									// 									catch (eFullTbl)
-									// 									{
-									// 										punchTableFull = null;
-									// 									}
-									// 2. Generate Compact HTML (for URL Param) - Optional if URL is too long
-									// For now we pass the full table, but encoded
-									dateFormatted = cellDate.toString("dd-MMM-yyyy");
-									// 									encoded_html = zoho.encryption.urlEncode(ifnull(punchTableFull,""));
-									baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
-									hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
-									// Safety guard for URL length (Creator breaks above ~2000 chars)
-									// 									if(encoded_html.length() > 1)
-									// 									{
-									// 										hdLinkUrl = hdLinkUrl + "&plain=" + encoded_html;
-									// 									}
-									displayStatus = "SH";
-									badgeClass = "status-sh";
-									titleText = "Short Hours | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
+									rowAbsent = rowAbsent + 1.0;
+									rowPureAbsent = rowPureAbsent + 1.0;
 								}
+								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + cellDate.toString("dd-MMM-yyyy") + "&zc_Header=false";
+								displayStatus = "SH";
+								badgeClass = "status-sh";
+								titleText = "Short Hours | Final_Time: " + finalTimeDisplay + " | Worked Minutes: " + workedMinutes + " | Click to regularize";
 							}
 						}
 						else if(hasLeave)
@@ -1989,24 +897,23 @@
 							{
 								rowAbsent = rowAbsent + 1.0;
 								rowPureAbsent = rowPureAbsent + 0.5;
-								leaveIncrement = 0.5;
 								if(leaveType == "SL")
 								{
 									displayStatus = if(isFH,"SL 1st","SL 2nd");
 									badgeClass = if(isFH,"status-sl1","status-sl2");
-									rowSL = rowSL + leaveIncrement;
+									rowSL = rowSL + 0.5;
 								}
 								else if(leaveType == "LOP")
 								{
 									displayStatus = if(isFH,"LOP 1st","LOP 2nd");
 									badgeClass = if(isFH,"status-lop1","status-lop2");
-									rowLOP = rowLOP + leaveIncrement;
+									rowLOP = rowLOP + 0.5;
 								}
 								else
 								{
 									displayStatus = if(isFH,"CL 1st","CL 2nd");
 									badgeClass = if(isFH,"status-cl1","status-cl2");
-									rowCL = rowCL + leaveIncrement;
+									rowCL = rowCL + 0.5;
 								}
 								titleText = displayStatus + " + Absent";
 							}
@@ -2034,217 +941,96 @@
 								titleText = displayStatus + " Full Day Leave";
 							}
 						}
+						else if(isToday)
+						{
+							hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + cellDate.toString("dd-MMM-yyyy") + "&zc_Header=false";
+							displayStatus = "TODAY_NP";
+							badgeClass = "status-today";
+							titleText = "Today | No punch yet | Click to regularize";
+							liveTimeDisplay = "0h 0m";
+						}
 						else
 						{
-							if(isToday)
-							{
-								// ---- TODAY: no punch yet ----
-								dateFormatted = cellDate.toString("dd-MMM-yyyy");
-								baseFormUrl = "https://creatorapp.zohopublic.in/zentegraindia/attendance-payroll-management/form-embed/Attendance_Regularization/rQKJJr5sVeFsDKXuynymhz0S9PxeZ39jPhY4vTjfXPRKwkPh8unh8pWQUEeBumqarGzCwqGhNxxFQ3ZpP4n8jqTTgfpVJwweN91G";
-								hdLinkUrl = baseFormUrl + "?Employee=" + targetEmpID + "&Date_field=" + dateFormatted + "&zc_Header=false";
-								displayStatus = "TODAY_NP";
-								badgeClass = "status-today";
-								titleText = "Today | No punch yet | Click to regularize";
-							}
-							else
-							{
-								displayStatus = "A";
-								badgeClass = "status-absent";
-								titleText = "Absent";
-								rowAbsent = rowAbsent + 1.0;
-								rowPureAbsent = rowPureAbsent + 1.0;
-							}
+							displayStatus = "A";
+							badgeClass = "status-absent";
+							titleText = "Absent";
+							rowAbsent = rowAbsent + 1.0;
+							rowPureAbsent = rowPureAbsent + 1.0;
 						}
 					}
 					if(!isSplitDisplay)
 					{
-						if(displayStatus == "P")
+						meta = statusMeta.get(displayStatus);
+						if(meta != null)
 						{
-							uiLabel = "Present";
-							uiIcon = "fas fa-circle";
-							cellClasses = cellClasses + " cell-present-bg";
-						}
-						else if(displayStatus == "SH")
-						{
-							uiLabel = "Short Hours";
-							uiLabelDescription = "Click to Request Regularization";
-							uiIcon = "fas fa-clock";
-							cellClasses = cellClasses + " cell-sh-bg";
-						}
-						else if(displayStatus == "A")
-						{
-							uiLabel = "Absent";
-							uiIcon = "fas fa-user-xmark";
-							cellClasses = cellClasses + " cell-absent-bg";
-						}
-						else if(displayStatus == "H")
-						{
-							uiLabel = "Holiday";
-							uiIcon = "fas fa-umbrella-beach";
-							cellClasses = cellClasses + " cell-holiday-bg";
-						}
-						else if(displayStatus == "CL")
-						{
-							uiLabel = "Casual Leave";
-							uiIcon = "fas fa-briefcase";
-							cellClasses = cellClasses + " cell-cl-bg";
-						}
-						else if(displayStatus == "CL 1st")
-						{
-							uiLabel = "CL 1st Half";
-							uiIcon = "fas fa-briefcase";
-							cellClasses = cellClasses + " cell-cl-bg";
-						}
-						else if(displayStatus == "CL 2nd")
-						{
-							uiLabel = "CL 2nd Half";
-							uiIcon = "fas fa-briefcase";
-							cellClasses = cellClasses + " cell-cl-bg";
-						}
-						else if(displayStatus == "SL")
-						{
-							uiLabel = "Sick Leave";
-							uiIcon = "fas fa-briefcase";
-							cellClasses = cellClasses + " cell-sl-bg";
-						}
-						else if(displayStatus == "SL 1st")
-						{
-							uiLabel = "SL 1st Half";
-							uiIcon = "fas fa-briefcase";
-							cellClasses = cellClasses + " cell-sl-bg";
-						}
-						else if(displayStatus == "SL 2nd")
-						{
-							uiLabel = "SL 2nd Half";
-							uiIcon = "fas fa-briefcase";
-							cellClasses = cellClasses + " cell-sl-bg";
-						}
-						else if(displayStatus == "LOP")
-						{
-							uiLabel = "LOP";
-							uiIcon = "fas fa-ban";
-							cellClasses = cellClasses + " cell-lop-bg";
-						}
-						else if(displayStatus == "LOP 1st")
-						{
-							uiLabel = "LOP 1st Half";
-							uiIcon = "fas fa-ban";
-							cellClasses = cellClasses + " cell-lop-bg";
-						}
-						else if(displayStatus == "LOP 2nd")
-						{
-							uiLabel = "LOP 2nd Half";
-							uiIcon = "fas fa-ban";
-							cellClasses = cellClasses + " cell-lop-bg";
-						}
-						else if(displayStatus == "W")
-						{
-							uiLabel = "Week Off";
-							uiIcon = "fas fa-mug-hot";
-						}
-						else if(displayStatus == "TODAY")
-						{
-							uiLabel = "TODAY_LIVE";
-							cellClasses = cellClasses + " cell-today-bg";
-						}
-						else if(displayStatus == "TODAY_NP")
-						{
-							uiLabel = "TODAY_LIVE";
-							if(liveTimeDisplay == "")
+							uiLabel = meta.get(0);
+							uiIcon = meta.get(1);
+							cellClasses = cellClasses + meta.get(2);
+							if(displayStatus == "SH")
 							{
-								liveTimeDisplay = "0h 0m";
+								uiLabelDescription = "Click to Request Regularization";
 							}
-							cellClasses = cellClasses + " cell-today-bg";
 						}
-					}
-				}
-				dayNumClass = "day-number";
-				if(inMonth)
-				{
-					if(dow == 0)
-					{
-						dayNumClass = dayNumClass + " sun-num";
-					}
-					if(dow == 6)
-					{
-						dayNumClass = dayNumClass + " sat-num";
 					}
 				}
 				%>
 <div class="<%=cellClasses%>" title="<%=titleText%>">
-						<div class="<%=dayNumClass%>">
-							<%=cellDate.toString("dd")%>
-						</div>
+						<div class="<%=dayNumClass%>"><%=cellDate.toString("dd")%></div>
 <%
 				if(inMonth)
 				{
 					%>
 <div class="<%=statusWrapClass%>">
 <%
-					// ============ NEW TODAY CELL CODE (PASTE HERE) ============
 					if(displayStatus == "TODAY" || displayStatus == "TODAY_NP")
 					{
 						shId = "sh_" + cellDate.toString("yyyyMMdd");
 						%>
 <input type="checkbox" id="<%=shId%>" class="sh-toggle">
-
-						<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-						<%
-							if(displayStatus == "TODAY")
-							{
-								%>
-						<span class="today-working-badge" title="Currently Working">
+							<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+<%
+						if(displayStatus == "TODAY")
+						{
+							%>
+<span class="today-working-badge" title="Currently Working">
 									<i class="fas fa-desktop"></i>
 									<span class="working-pulse-dot"></span>
 								</span>
-						<%
-							}
-							else
-							{
-								%>
-						<span class="today-hours-badge">
+<%
+						}
+						else
+						{
+							%>
+<span class="today-hours-badge">
 									<i class="fas fa-clock"></i>
 									<%=liveTimeDisplay%>
 								</span>
-						<%
-							}
+<%
+						}
 						%>
-							<label for="<%=shId%>" class="today-regularize-link">
-								Regularize Today
-							</label>
-						</div>
-
-						<div class="sh-modal-overlay">
-							<label for="<%=shId%>" class="sh-backdrop"></label>
-							<div class="sh-modal-box">
-								<div class="sh-modal-header">
-									<div>
-										<div class="sh-modal-title">
-											<i class="fas fa-clock"></i>
-											Attendance Regularization Request
+<label for="<%=shId%>" class="today-regularize-link">Regularize Today</label>
+							</div>
+							<div class="sh-modal-overlay">
+								<label for="<%=shId%>" class="sh-backdrop"></label>
+								<div class="sh-modal-box">
+									<div class="sh-modal-header">
+										<div>
+											<div class="sh-modal-title"><i class="fas fa-clock"></i> Attendance Regularization Request</div>
+											<div class="sh-modal-sub">This Request Goes To Your Reporting Manager &amp; HR</div>
 										</div>
-										<div class="sh-modal-sub">
-											This Request Goes To Your Reporting Manager &amp; HR
-										</div>
+										<label for="<%=shId%>" class="sh-modal-close"><i class="fas fa-times"></i></label>
 									</div>
-									<label for="<%=shId%>" class="sh-modal-close">
-										<i class="fas fa-times"></i>
-									</label>
-								</div>
-								<div class="sh-modal-body">
-									<iframe src="<%=hdLinkUrl%>" loading="lazy" frameborder="0"></iframe>
+									<div class="sh-modal-body">
+										<iframe src="<%=hdLinkUrl%>" loading="lazy" frameborder="0"></iframe>
+									</div>
 								</div>
 							</div>
-						</div>
 <%
 					}
-					// ============ END TODAY CELL CODE ============
 					else if(showDash)
 					{
 						%>
-<span class="text-muted" style="opacity:0.35;font-weight:600;font-size:16px;">
-							&mdash;
-						</span>
+<span class="text-muted" style="opacity:0.35;font-weight:600;font-size:16px;">&mdash;</span>
 <%
 					}
 					else if(uiLabel != "")
@@ -2254,7 +1040,6 @@
 							shId = "sh_" + cellDate.toString("yyyyMMdd");
 							%>
 <input type="checkbox" id="<%=shId%>" class="sh-toggle">
-
 							<label for="<%=shId%>" class="hd-link" title="<%=titleText%>">
 								<span class="status-badge <%=badgeClass%>">
 									<i class="<%=uiIcon%>"></i>
@@ -2262,32 +1047,18 @@
 									<%=finalTimeDisplay%>
 								</span>
 								<br>
-								<span class="desp <%=descClass%>">
-									<%=uiLabelDescription%>
-								</span>
+								<span class="desp <%=descClass%>"><%=uiLabelDescription%></span>
 							</label>
-
 							<div class="sh-modal-overlay">
 								<label for="<%=shId%>" class="sh-backdrop"></label>
-
 								<div class="sh-modal-box">
 									<div class="sh-modal-header">
 										<div>
-											<div class="sh-modal-title">
-												<i class="fas fa-clock"></i>
-												Attendance Regularization Request
-											</div>
-
-											<div class="sh-modal-sub">
-												This Request Goes To Your Reporting Manager &amp; HR
-											</div>
+											<div class="sh-modal-title"><i class="fas fa-clock"></i> Attendance Regularization Request</div>
+											<div class="sh-modal-sub">This Request Goes To Your Reporting Manager &amp; HR</div>
 										</div>
-
-										<label for="<%=shId%>" class="sh-modal-close">
-											<i class="fas fa-times"></i>
-										</label>
+										<label for="<%=shId%>" class="sh-modal-close"><i class="fas fa-times"></i></label>
 									</div>
-
 									<div class="sh-modal-body">
 										<iframe src="<%=hdLinkUrl%>" loading="lazy" frameborder="0" allowTransparency="true" scrolling="auto"></iframe>
 									</div>
@@ -2340,50 +1111,40 @@
 					<img class="leave-sum-icon" src="https://cdn-icons-png.flaticon.com/128/16916/16916358.png" alt="">
 					Leave Summary
 				</div>
-
 				<div class="leave-grid">
 					<div class="leave-tile tile-present">
 						<div class="ico"><i class="fas fa-circle-check"></i></div>
 						<span class="lbl">Present Days</span>
 						<span class="val"><%=rowPresent%></span>
 					</div>
-
 					<div class="leave-tile tile-taken">
 						<div class="ico"><i class="fas fa-calendar-day"></i></div>
 						<span class="lbl">Total Leave Taken</span>
 						<span class="val"><%=rowAbsent%></span>
 					</div>
-
 					<div class="leave-tile tile-sl">
 						<div class="ico"><i class="fas fa-notes-medical"></i></div>
 						<span class="lbl">Sick Leave Taken</span>
 						<span class="val"><%=rowSL%></span>
 					</div>
-
 					<div class="leave-tile tile-cl">
 						<div class="ico"><i class="fas fa-leaf"></i></div>
 						<span class="lbl">Casual Leave Taken</span>
 						<span class="val"><%=rowCL%></span>
 					</div>
-
 					<div class="leave-tile tile-lop">
 						<div class="ico"><i class="fas fa-ban"></i></div>
 						<span class="lbl">LOP</span>
 						<span class="val"><%=rowLOP%></span>
 					</div>
-
 					<div class="leave-tile tile-half">
 						<div class="ico"><i class="fas fa-clock"></i></div>
 						<span class="lbl">Half Days Taken<br>(Less than 8hrs)</span>
 						<span class="val"><%=rowHalfDay%></span>
 					</div>
 				</div>
-
 				<div class="tile-holiday-wide">
-					<div class="ico">
-						<i class="fas fa-umbrella-beach"></i>
-					</div>
-
+					<div class="ico"><i class="fas fa-umbrella-beach"></i></div>
 					<div>
 						<span class="lbl">Holiday</span>
 						<span class="val"><%=rowHoliday%></span>
